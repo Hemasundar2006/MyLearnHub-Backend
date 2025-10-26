@@ -4,6 +4,7 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const seedAdmin = require('./utils/seedAdmin');
 const seedCourses = require('./utils/seedCourses');
+const seedNotifications = require('./utils/seedNotifications');
 
 // Load environment variables
 dotenv.config();
@@ -17,6 +18,8 @@ connectDB().then(() => {
   seedAdmin();
   if (process.env.NODE_ENV === 'development') {
     seedCourses();
+    // Seed notifications after courses
+    setTimeout(() => seedNotifications(), 2000);
   }
 });
 

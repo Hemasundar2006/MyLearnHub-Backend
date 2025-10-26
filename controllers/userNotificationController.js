@@ -99,6 +99,16 @@ exports.getUnreadCount = async (req, res) => {
 // @access  Private
 exports.markAsRead = async (req, res) => {
   try {
+    const mongoose = require('mongoose');
+    
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid notification ID format',
+      });
+    }
+
     const notification = await Notification.findById(req.params.id);
 
     if (!notification) {
@@ -128,10 +138,10 @@ exports.markAsRead = async (req, res) => {
   } catch (error) {
     console.error('Mark as read error:', error);
     
-    if (error.kind === 'ObjectId') {
-      return res.status(404).json({
+    if (error.kind === 'ObjectId' || error.name === 'CastError') {
+      return res.status(400).json({
         success: false,
-        message: 'Notification not found',
+        message: 'Invalid notification ID format',
       });
     }
 
@@ -189,6 +199,16 @@ exports.markAllAsRead = async (req, res) => {
 // @access  Private
 exports.deleteNotification = async (req, res) => {
   try {
+    const mongoose = require('mongoose');
+    
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid notification ID format',
+      });
+    }
+
     const notification = await Notification.findById(req.params.id);
 
     if (!notification) {
@@ -219,10 +239,10 @@ exports.deleteNotification = async (req, res) => {
   } catch (error) {
     console.error('Delete notification error:', error);
     
-    if (error.kind === 'ObjectId') {
-      return res.status(404).json({
+    if (error.kind === 'ObjectId' || error.name === 'CastError') {
+      return res.status(400).json({
         success: false,
-        message: 'Notification not found',
+        message: 'Invalid notification ID format',
       });
     }
 
