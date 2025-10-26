@@ -37,11 +37,13 @@ if (process.env.NODE_ENV === 'development') {
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'MyLearnHub Backend API - Extended Admin Management',
-    version: '2.0.0',
+    message: 'MyLearnHub Backend API - Complete Platform',
+    version: '3.0.0',
     endpoints: {
       auth: '/api/auth',
       courses: '/api/courses',
+      profile: '/api/profile',
+      notifications: '/api/notifications',
       admin: {
         auth: '/api/admin/auth',
         dashboard: '/api/admin/dashboard',
@@ -68,6 +70,8 @@ app.get('/health', (req, res) => {
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/courses', require('./routes/courses'));
+app.use('/api/profile', require('./routes/profile'));
+app.use('/api/notifications', require('./routes/notifications'));
 
 // Admin Routes
 app.use('/api/admin/auth', require('./routes/admin/auth'));
@@ -112,6 +116,16 @@ const server = app.listen(PORT, () => {
   console.log('     - POST   /api/auth/register');
   console.log('     - POST   /api/auth/login');
   console.log('     - GET    /api/auth/profile');
+  console.log('   User Profile:');
+  console.log('     - GET    /api/profile');
+  console.log('     - PUT    /api/profile');
+  console.log('     - DELETE /api/profile');
+  console.log('     - PUT    /api/profile/change-password');
+  console.log('     - GET    /api/profile/enrollments');
+  console.log('   User Notifications:');
+  console.log('     - GET    /api/notifications');
+  console.log('     - GET    /api/notifications/unread-count');
+  console.log('     - POST   /api/notifications/:id/read');
   console.log('   Public Courses:');
   console.log('     - GET    /api/courses');
   console.log('     - GET    /api/courses/:id');
