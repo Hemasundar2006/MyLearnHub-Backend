@@ -63,10 +63,22 @@ exports.createNotification = async (req, res) => {
       icon,
     } = req.body;
 
-    if (!title || !message) {
+    // Validate required fields
+    if (!title || !message || typeof title !== 'string' || typeof message !== 'string') {
       return res.status(400).json({
         success: false,
-        message: 'Please provide title and message',
+        message: 'Please provide valid title and message',
+      });
+    }
+
+    // Trim and validate title and message
+    const trimmedTitle = title.trim();
+    const trimmedMessage = message.trim();
+
+    if (!trimmedTitle || !trimmedMessage) {
+      return res.status(400).json({
+        success: false,
+        message: 'Title and message cannot be empty',
       });
     }
 
@@ -83,8 +95,8 @@ exports.createNotification = async (req, res) => {
     }
 
     const notification = await Notification.create({
-      title,
-      message,
+      title: trimmedTitle,
+      message: trimmedMessage,
       type: type || 'general',
       targetAudience: targetAudience || 'all',
       targetUsers: recipients.map(u => u._id),
@@ -93,8 +105,8 @@ exports.createNotification = async (req, res) => {
       scheduledFor,
       sentAt: scheduledFor ? null : new Date(),
       sentBy: req.user.id,
-      link,
-      icon,
+      link: link || undefined,
+      icon: icon || undefined,
     });
 
     const populatedNotification = await Notification.findById(notification._id)
@@ -120,6 +132,16 @@ exports.createNotification = async (req, res) => {
 // @access  Private/Admin
 exports.getNotificationById = async (req, res) => {
   try {
+    const mongoose = require('mongoose');
+    
+    // Validate ObjectId format
+    if (!req.params.id || req.params.id === 'undefined' || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid notification ID format',
+      });
+    }
+
     const notification = await Notification.findById(req.params.id)
       .populate('sentBy', 'name email avatar')
       .populate('targetUsers', 'name email avatar')
@@ -139,10 +161,10 @@ exports.getNotificationById = async (req, res) => {
   } catch (error) {
     console.error('Get notification by ID error:', error);
     
-    if (error.kind === 'ObjectId') {
-      return res.status(404).json({
+    if (error.kind === 'ObjectId' || error.name === 'CastError') {
+      return res.status(400).json({
         success: false,
-        message: 'Notification not found',
+        message: 'Invalid notification ID format',
       });
     }
 
@@ -159,6 +181,16 @@ exports.getNotificationById = async (req, res) => {
 // @access  Private/Admin
 exports.updateNotification = async (req, res) => {
   try {
+    const mongoose = require('mongoose');
+    
+    // Validate ObjectId format
+    if (!req.params.id || req.params.id === 'undefined' || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid notification ID format',
+      });
+    }
+
     let notification = await Notification.findById(req.params.id);
 
     if (!notification) {
@@ -176,9 +208,30 @@ exports.updateNotification = async (req, res) => {
       });
     }
 
+    // Validate and trim title/message if provided
+    const updateData = { ...req.body };
+    if (updateData.title && typeof updateData.title === 'string') {
+      updateData.title = updateData.title.trim();
+      if (!updateData.title) {
+        return res.status(400).json({
+          success: false,
+          message: 'Title cannot be empty',
+        });
+      }
+    }
+    if (updateData.message && typeof updateData.message === 'string') {
+      updateData.message = updateData.message.trim();
+      if (!updateData.message) {
+        return res.status(400).json({
+          success: false,
+          message: 'Message cannot be empty',
+        });
+      }
+    }
+
     notification = await Notification.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updateData,
       {
         new: true,
         runValidators: true,
@@ -193,10 +246,10 @@ exports.updateNotification = async (req, res) => {
   } catch (error) {
     console.error('Update notification error:', error);
     
-    if (error.kind === 'ObjectId') {
-      return res.status(404).json({
+    if (error.kind === 'ObjectId' || error.name === 'CastError') {
+      return res.status(400).json({
         success: false,
-        message: 'Notification not found',
+        message: 'Invalid notification ID format',
       });
     }
 
@@ -213,6 +266,16 @@ exports.updateNotification = async (req, res) => {
 // @access  Private/Admin
 exports.deleteNotification = async (req, res) => {
   try {
+    const mongoose = require('mongoose');
+    
+    // Validate ObjectId format
+    if (!req.params.id || req.params.id === 'undefined' || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid notification ID format',
+      });
+    }
+
     const notification = await Notification.findById(req.params.id);
 
     if (!notification) {
@@ -232,10 +295,10 @@ exports.deleteNotification = async (req, res) => {
   } catch (error) {
     console.error('Delete notification error:', error);
     
-    if (error.kind === 'ObjectId') {
-      return res.status(404).json({
+    if (error.kind === 'ObjectId' || error.name === 'CastError') {
+      return res.status(400).json({
         success: false,
-        message: 'Notification not found',
+        message: 'Invalid notification ID format',
       });
     }
 
