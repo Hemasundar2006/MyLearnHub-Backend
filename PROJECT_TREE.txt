@@ -1,0 +1,173 @@
+MyLearnHub Backend/
+│
+├── 📄 server.js                          # Main application entry point
+├── 📄 package.json                       # Dependencies and scripts
+├── 📄 .gitignore                         # Git ignore rules
+│
+├── 📖 Documentation Files
+│   ├── START_HERE.md                     # 👈 START HERE! Quick start guide
+│   ├── README.md                         # Project overview and setup
+│   ├── SUMMARY.md                        # Complete project summary
+│   ├── QUICK_START.md                    # 5-minute setup guide
+│   ├── API_DOCUMENTATION.md              # Complete API reference
+│   ├── INTEGRATION_GUIDE.md              # Frontend integration guide
+│   ├── TESTING_GUIDE.md                  # Testing instructions
+│   ├── DEPLOYMENT_GUIDE.md               # Production deployment
+│   ├── PROJECT_STRUCTURE.md              # Detailed structure
+│   ├── PROJECT_TREE.txt                  # This file
+│   └── POSTMAN_COLLECTION.json           # Postman API collection
+│
+├── ⚙️ config/
+│   └── db.js                             # MongoDB connection setup
+│
+├── 🗃️ models/
+│   ├── User.js                           # User schema (auth, roles)
+│   └── Course.js                         # Course schema
+│
+├── 🛡️ middleware/
+│   ├── auth.js                           # JWT authentication
+│   └── admin.js                          # Admin authorization
+│
+├── 🎮 controllers/
+│   ├── authController.js                 # User auth logic
+│   ├── courseController.js               # Public course logic
+│   └── adminController.js                # Admin auth + course CRUD
+│
+├── 🛤️ routes/
+│   ├── auth.js                           # User auth routes
+│   ├── courses.js                        # Public course routes
+│   └── admin/
+│       ├── auth.js                       # Admin auth routes
+│       └── courses.js                    # Admin course routes
+│
+└── 🔧 utils/
+    ├── errorResponse.js                  # Error handling
+    ├── seedAdmin.js                      # Admin user seeding
+    ├── seedCourses.js                    # Course seeding
+    └── sampleCourses.js                  # Sample data
+
+═══════════════════════════════════════════════════════════════
+
+API ENDPOINTS TREE:
+
+http://localhost:5000/
+│
+├── /health                               [GET]    Health check
+│
+├── /api/
+│   │
+│   ├── /auth/                            USER AUTHENTICATION
+│   │   ├── /register                     [POST]   Register user
+│   │   ├── /login                        [POST]   User login
+│   │   └── /profile                      [GET]    Get profile (Protected)
+│   │                                     [PUT]    Update profile (Protected)
+│   │
+│   ├── /courses/                         PUBLIC COURSES
+│   │   ├── /                             [GET]    Get all published courses
+│   │   └── /:id                          [GET]    Get course by ID
+│   │
+│   └── /admin/                           ADMIN AREA
+│       │
+│       ├── /auth/                        ADMIN AUTH
+│       │   ├── /login                    [POST]   Admin login
+│       │   └── /profile                  [GET]    Admin profile (Admin Only)
+│       │
+│       └── /courses/                     COURSE MANAGEMENT
+│           ├── /                         [GET]    Get all courses (Admin Only)
+│           │                             [POST]   Create course (Admin Only)
+│           └── /:id                      [GET]    Get course by ID (Admin Only)
+│                                         [PUT]    Update course (Admin Only)
+│                                         [DELETE] Delete course (Admin Only)
+
+═══════════════════════════════════════════════════════════════
+
+DATABASE STRUCTURE:
+
+MongoDB: mylearnhub
+│
+├── users
+│   └── {
+│       _id: ObjectId,
+│       name: String,
+│       email: String (unique),
+│       password: String (hashed),
+│       avatar: String,
+│       role: String (user/admin),
+│       isActive: Boolean,
+│       createdAt: Date,
+│       updatedAt: Date
+│     }
+│
+└── courses
+    └── {
+        _id: ObjectId,
+        title: String,
+        description: String,
+        instructor: String,
+        duration: String,
+        price: Number,
+        image: String,
+        status: String (draft/published/archived),
+        category: String,
+        level: String (beginner/intermediate/advanced),
+        enrolledCount: Number,
+        rating: Number,
+        createdBy: ObjectId (User ref),
+        createdAt: Date,
+        updatedAt: Date
+      }
+
+═══════════════════════════════════════════════════════════════
+
+AUTHENTICATION FLOW:
+
+1. USER/ADMIN LOGIN
+   └─> POST /api/auth/login or /api/admin/auth/login
+       └─> Server validates credentials
+           └─> Checks role (for admin endpoint)
+               └─> Generates JWT token
+                   └─> Returns { token, user: { role: "admin" } }
+
+2. PROTECTED REQUEST
+   └─> Client includes: Authorization: Bearer <token>
+       └─> auth.protect middleware verifies token
+           └─> Attaches user to req.user
+               └─> Request proceeds
+
+3. ADMIN REQUEST
+   └─> Client includes: Authorization: Bearer <admin_token>
+       └─> auth.protect middleware verifies token
+           └─> admin.adminOnly middleware checks role
+               └─> If admin: proceed
+                   └─> If not: 403 Forbidden
+
+═══════════════════════════════════════════════════════════════
+
+QUICK START:
+
+1. npm install
+2. Ensure MongoDB is running
+3. npm run dev
+4. Open http://localhost:5000
+
+Default Admin:
+  Email: admin@mylearnhub.com
+  Password: Admin@123
+
+═══════════════════════════════════════════════════════════════
+
+DOCUMENTATION GUIDE:
+
+📖 START_HERE.md           ← Begin here for quick start
+📖 SUMMARY.md              ← Complete overview of everything
+📖 QUICK_START.md          ← Detailed 5-minute setup
+📖 API_DOCUMENTATION.md    ← All endpoint details
+📖 INTEGRATION_GUIDE.md    ← Frontend code examples
+📖 TESTING_GUIDE.md        ← How to test everything
+📖 DEPLOYMENT_GUIDE.md     ← Deploy to production
+📖 PROJECT_STRUCTURE.md    ← Detailed code structure
+
+═══════════════════════════════════════════════════════════════
+
+READY TO USE! 🚀
+
