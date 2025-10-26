@@ -229,6 +229,17 @@ exports.deleteAccount = async (req, res) => {
 // @access  Private
 exports.getEnrollments = async (req, res) => {
   try {
+    console.log('getEnrollments called');
+    console.log('User ID:', req.user?.id);
+    console.log('User object:', req.user);
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      });
+    }
+
     const { status, page = 1, limit = 10 } = req.query;
 
     let query = { user: req.user.id };

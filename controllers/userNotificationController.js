@@ -19,7 +19,8 @@ exports.getUserNotifications = async (req, res) => {
         { targetAudience: 'specific', targetUsers: req.user.id },
         { targetUsers: req.user.id }
       ],
-      status: 'sent'
+      status: 'sent',
+      dismissedBy: { $ne: req.user.id }
     };
 
     console.log('Query:', JSON.stringify(query, null, 2));
@@ -87,7 +88,8 @@ exports.getUnreadCount = async (req, res) => {
         { targetUsers: req.user.id }
       ],
       status: 'sent',
-      'readBy.user': { $ne: req.user.id }
+      'readBy.user': { $ne: req.user.id },
+      dismissedBy: { $ne: req.user.id }
     });
 
     res.status(200).json({
@@ -179,7 +181,8 @@ exports.markAllAsRead = async (req, res) => {
         { targetUsers: req.user.id }
       ],
       status: 'sent',
-      'readBy.user': { $ne: req.user.id }
+      'readBy.user': { $ne: req.user.id },
+      dismissedBy: { $ne: req.user.id }
     });
 
     // Mark each notification as read
@@ -232,26 +235,80 @@ exports.deleteNotification = async (req, res) => {
       });
     }
 
-    // For user-side, we just mark as read and don't actually delete
-    // Or you can implement a "dismissed" field in the schema
-    const alreadyRead = notification.readBy.some(
-      read => read.user.toString() === req.user.id
+    // Check if already dismissed by this user
+    const alreadyDismissed = notification.dismissedBy.some(
+      userId => userId.toString() === req.user.id
     );
 
-    if (!alreadyRead) {
-      notification.readBy.push({
-        user: req.user.id,
-        readAt: new Date(),
-      });
+    if (!alreadyDismissed) {
+      // Add user to dismissedBy array
+      notification.dismissedBy.push(req.user.id);
       await notification.save();
     }
 
     res.status(200).json({
       success: true,
-      message: 'Notification dismissed',
+      message: 'Notification dismissed successfully',
     });
   } catch (error) {
     console.error('Delete notification error:', error);
+    
+    if (error.kind === 'ObjectId' || error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid notification ID format',
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Server error dismissing notification',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Dismiss notification (hide from user's view)
+// @route   POST /api/notifications/:id/dismiss
+// @access  Private
+exports.dismissNotification = async (req, res) => {
+  try {
+    const mongoose = require('mongoose');
+    
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid notification ID format',
+      });
+    }
+
+    const notification = await Notification.findById(req.params.id);
+
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found',
+      });
+    }
+
+    // Check if already dismissed by this user
+    const alreadyDismissed = notification.dismissedBy.some(
+      userId => userId.toString() === req.user.id
+    );
+
+    if (!alreadyDismissed) {
+      // Add user to dismissedBy array
+      notification.dismissedBy.push(req.user.id);
+      await notification.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Notification dismissed successfully',
+    });
+  } catch (error) {
+    console.error('Dismiss notification error:', error);
     
     if (error.kind === 'ObjectId' || error.name === 'CastError') {
       return res.status(400).json({

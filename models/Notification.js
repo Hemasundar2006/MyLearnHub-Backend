@@ -67,6 +67,10 @@ const notificationSchema = new mongoose.Schema(
         type: Date,
       },
     }],
+    dismissedBy: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    }],
     link: {
       type: String,
     },
