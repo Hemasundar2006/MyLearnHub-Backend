@@ -51,6 +51,8 @@ exports.getAllNotifications = async (req, res) => {
 // @access  Private/Admin
 exports.createNotification = async (req, res) => {
   try {
+    console.log('Request body:', req.body);
+    
     const {
       title,
       message,
@@ -63,17 +65,36 @@ exports.createNotification = async (req, res) => {
       icon,
     } = req.body;
 
+    console.log('Extracted values:', { title, message, type, targetAudience });
+
     // Validate required fields
-    if (!title || !message || typeof title !== 'string' || typeof message !== 'string') {
+    if (!title || !message) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide valid title and message',
+        message: 'Please provide both title and message',
+      });
+    }
+
+    if (typeof title !== 'string' || typeof message !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Title and message must be strings',
       });
     }
 
     // Trim and validate title and message
-    const trimmedTitle = title.trim();
-    const trimmedMessage = message.trim();
+    let trimmedTitle, trimmedMessage;
+    try {
+      trimmedTitle = title.trim();
+      trimmedMessage = message.trim();
+    } catch (trimError) {
+      console.error('Trim error:', trimError);
+      return res.status(400).json({
+        success: false,
+        message: 'Error processing title or message',
+        error: trimError.message,
+      });
+    }
 
     if (!trimmedTitle || !trimmedMessage) {
       return res.status(400).json({
@@ -119,6 +140,26 @@ exports.createNotification = async (req, res) => {
     });
   } catch (error) {
     console.error('Create notification error:', error);
+    
+    // Handle Mongoose validation errors
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: errors,
+      });
+    }
+    
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Duplicate field value',
+        error: error.message,
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Server error creating notification',

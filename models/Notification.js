@@ -6,10 +6,22 @@ const notificationSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Please provide a notification title'],
       trim: true,
+      validate: {
+        validator: function(v) {
+          return v && typeof v === 'string' && v.trim().length > 0;
+        },
+        message: 'Title must be a non-empty string'
+      }
     },
     message: {
       type: String,
       required: [true, 'Please provide a notification message'],
+      validate: {
+        validator: function(v) {
+          return v && typeof v === 'string' && v.trim().length > 0;
+        },
+        message: 'Message must be a non-empty string'
+      }
     },
     type: {
       type: String,

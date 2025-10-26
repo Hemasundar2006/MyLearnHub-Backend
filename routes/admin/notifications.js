@@ -15,6 +15,15 @@ const { adminOnly } = require('../../middleware/admin');
 router.use(protect);
 router.use(adminOnly);
 
+// Debug middleware for POST requests
+router.use((req, res, next) => {
+  if (req.method === 'POST') {
+    console.log('Notification POST request body:', req.body);
+    console.log('Request headers:', req.headers);
+  }
+  next();
+});
+
 router.get('/stats', getNotificationStats);
 
 router.route('/')
