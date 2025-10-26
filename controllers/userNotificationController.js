@@ -28,29 +28,30 @@ exports.getUserNotifications = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit));
 
-    // Check which notifications are read by this user
-    const notificationsWithReadStatus = notifications.map(notif => {
+    // Check which notifications are read by this user and format response
+    const formattedNotifications = notifications.map(notif => {
       const isRead = notif.readBy.some(
         read => read.user.toString() === req.user.id
       );
 
       return {
-        ...notif.toObject(),
-        isRead,
-        readBy: undefined, // Remove readBy from response
-        targetUsers: undefined // Remove targetUsers from response
+        id: notif._id.toString(),
+        title: notif.title,
+        message: notif.message,
+        type: notif.type,
+        read: isRead,
+        priority: notif.priority,
+        link: notif.link,
+        icon: notif.icon,
+        createdAt: notif.sentAt || notif.createdAt
       };
     });
 
-    const totalNotifications = await Notification.countDocuments(query);
-
     res.status(200).json({
       success: true,
-      count: notifications.length,
-      total: totalNotifications,
-      page: parseInt(page),
-      pages: Math.ceil(totalNotifications / parseInt(limit)),
-      notifications: notificationsWithReadStatus,
+      data: {
+        notifications: formattedNotifications
+      }
     });
   } catch (error) {
     console.error('Get user notifications error:', error);
@@ -79,7 +80,9 @@ exports.getUnreadCount = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      unreadCount: notifications.length,
+      data: {
+        unreadCount: notifications.length
+      }
     });
   } catch (error) {
     console.error('Get unread count error:', error);
