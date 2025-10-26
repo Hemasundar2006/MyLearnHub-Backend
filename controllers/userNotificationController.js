@@ -26,8 +26,7 @@ exports.getUserNotifications = async (req, res) => {
     const notifications = await Notification.find(query)
       .sort({ sentAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit))
-      .select('-targetUsers -readBy');
+      .limit(parseInt(limit));
 
     // Check which notifications are read by this user
     const notificationsWithReadStatus = notifications.map(notif => {
@@ -38,7 +37,8 @@ exports.getUserNotifications = async (req, res) => {
       return {
         ...notif.toObject(),
         isRead,
-        readBy: undefined // Remove readBy from response
+        readBy: undefined, // Remove readBy from response
+        targetUsers: undefined // Remove targetUsers from response
       };
     });
 
