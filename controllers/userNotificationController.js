@@ -8,14 +8,21 @@ exports.getUserNotifications = async (req, res) => {
   try {
     const { status, type, page = 1, limit = 20 } = req.query;
 
+    console.log('User ID:', req.user.id);
+    console.log('User role:', req.user.role);
+
     let query = {
       $or: [
         { targetAudience: 'all' },
-        { targetAudience: 'students', 'targetUsers': req.user.id },
+        { targetAudience: 'students', targetUsers: req.user.id },
+        { targetAudience: 'instructors', targetUsers: req.user.id },
+        { targetAudience: 'specific', targetUsers: req.user.id },
         { targetUsers: req.user.id }
       ],
       status: 'sent'
     };
+
+    console.log('Query:', JSON.stringify(query, null, 2));
 
     if (type) {
       query.type = type;
@@ -27,6 +34,9 @@ exports.getUserNotifications = async (req, res) => {
       .sort({ sentAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
+
+    console.log('Found notifications:', notifications.length);
+    console.log('Notifications:', notifications.map(n => ({ id: n._id, title: n.title, targetAudience: n.targetAudience, targetUsers: n.targetUsers })));
 
     // Check which notifications are read by this user and format response
     const formattedNotifications = notifications.map(notif => {
@@ -71,7 +81,9 @@ exports.getUnreadCount = async (req, res) => {
     const notifications = await Notification.find({
       $or: [
         { targetAudience: 'all' },
-        { targetAudience: 'students', 'targetUsers': req.user.id },
+        { targetAudience: 'students', targetUsers: req.user.id },
+        { targetAudience: 'instructors', targetUsers: req.user.id },
+        { targetAudience: 'specific', targetUsers: req.user.id },
         { targetUsers: req.user.id }
       ],
       status: 'sent',
@@ -161,7 +173,9 @@ exports.markAllAsRead = async (req, res) => {
     const notifications = await Notification.find({
       $or: [
         { targetAudience: 'all' },
-        { targetAudience: 'students', 'targetUsers': req.user.id },
+        { targetAudience: 'students', targetUsers: req.user.id },
+        { targetAudience: 'instructors', targetUsers: req.user.id },
+        { targetAudience: 'specific', targetUsers: req.user.id },
         { targetUsers: req.user.id }
       ],
       status: 'sent',

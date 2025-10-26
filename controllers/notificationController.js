@@ -115,7 +115,7 @@ exports.createNotification = async (req, res) => {
       recipients = targetUsers.map(id => ({ _id: id }));
     }
 
-    const notification = await Notification.create({
+    const notificationData = {
       title: trimmedTitle,
       message: trimmedMessage,
       type: type || 'general',
@@ -128,7 +128,12 @@ exports.createNotification = async (req, res) => {
       sentBy: req.user.id,
       link: link || undefined,
       icon: icon || undefined,
-    });
+    };
+
+    console.log('Creating notification with data:', notificationData);
+    console.log('Recipients count:', recipients.length);
+
+    const notification = await Notification.create(notificationData);
 
     const populatedNotification = await Notification.findById(notification._id)
       .populate('sentBy', 'name email avatar');
