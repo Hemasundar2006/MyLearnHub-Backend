@@ -261,8 +261,8 @@ exports.approveThought = async (req, res) => {
     thought.notificationId = notification._id;
     await thought.save();
 
-    // Award 5 coins to the user who submitted the thought
-    const COIN_REWARD = 5;
+    // Award 10 coins to the user who submitted the thought
+    const COIN_REWARD = 10;
     const submitter = await User.findById(thought.submittedBy._id);
     
     if (submitter) {

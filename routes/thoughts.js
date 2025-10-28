@@ -7,13 +7,15 @@ const {
   deleteThought,
   getCoinBalance,
   getCoinTransactions,
+  getApprovedThoughts,
 } = require('../controllers/thoughtController');
 const { protect } = require('../middleware/auth');
 
-// All routes are protected (require authentication)
-router.use(protect);
+// Public routes (no authentication)
+router.get('/approved', getApprovedThoughts);
 
 // User thought routes
+router.use(protect);
 router.post('/', submitThought);
 router.get('/my-thoughts', getUserThoughts);
 router.get('/my-stats', getUserThoughtStats);

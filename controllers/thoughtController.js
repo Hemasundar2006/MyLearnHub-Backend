@@ -1,6 +1,63 @@
 const Thought = require('../models/Thought');
 const User = require('../models/User');
 
+// @desc    Get approved thoughts (public)
+// @route   GET /api/thoughts/approved
+// @access  Public
+exports.getApprovedThoughts = async (req, res) => {
+  try {
+    const { search, page = 1, limit = 20 } = req.query;
+
+    const query = { status: 'approved' };
+
+    if (search && search.trim() !== '') {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      query.$or = [{ title: searchRegex }, { message: searchRegex }];
+    }
+
+    const parsedPage = parseInt(page);
+    const parsedLimit = parseInt(limit);
+    const skip = (parsedPage - 1) * parsedLimit;
+
+    const [thoughts, total] = await Promise.all([
+      Thought.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parsedLimit)
+        .populate('submittedBy', 'name'),
+      Thought.countDocuments(query),
+    ]);
+
+    const formatted = thoughts.map((t) => ({
+      id: t._id,
+      title: t.title,
+      message: t.message,
+      submittedBy: t.submittedBy ? { name: t.submittedBy.name } : null,
+      createdAt: t.createdAt,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        thoughts: formatted,
+        pagination: {
+          page: parsedPage,
+          limit: parsedLimit,
+          total,
+          pages: Math.ceil(total / parsedLimit),
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Get approved thoughts error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching approved thoughts',
+      error: error.message,
+    });
+  }
+};
+
 // @desc    Submit a new thought
 // @route   POST /api/thoughts
 // @access  Private (User)
