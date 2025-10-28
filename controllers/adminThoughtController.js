@@ -142,11 +142,26 @@ exports.getThoughtById = async (req, res) => {
   try {
     const mongoose = require('mongoose');
     
+    console.log('Get thought by ID - ID received:', req.params.id);
+    console.log('Get thought by ID - ID type:', typeof req.params.id);
+    console.log('Get thought by ID - Raw params:', req.params);
+    
+    // Check if ID exists
+    if (!req.params.id) {
+      console.log('No ID provided in request');
+      return res.status(400).json({
+        success: false,
+        message: 'Thought ID is required',
+      });
+    }
+    
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      console.log('Invalid ID format:', req.params.id);
       return res.status(400).json({
         success: false,
         message: 'Invalid thought ID format',
+        receivedId: req.params.id,
       });
     }
 
@@ -214,11 +229,26 @@ exports.approveThought = async (req, res) => {
     const mongoose = require('mongoose');
     const { reviewNotes, targetAudience = 'all', priority } = req.body;
     
+    console.log('Approve thought - ID received:', req.params.id);
+    console.log('Approve thought - ID type:', typeof req.params.id);
+    console.log('Approve thought - Raw params:', req.params);
+    
+    // Check if ID exists
+    if (!req.params.id) {
+      console.log('No ID provided in request');
+      return res.status(400).json({
+        success: false,
+        message: 'Thought ID is required',
+      });
+    }
+    
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      console.log('Invalid ID format:', req.params.id);
       return res.status(400).json({
         success: false,
         message: 'Invalid thought ID format',
+        receivedId: req.params.id,
       });
     }
 
@@ -317,11 +347,26 @@ exports.rejectThought = async (req, res) => {
     const mongoose = require('mongoose');
     const { reviewNotes } = req.body;
     
+    console.log('Reject thought - ID received:', req.params.id);
+    console.log('Reject thought - ID type:', typeof req.params.id);
+    console.log('Reject thought - Raw params:', req.params);
+    
+    // Check if ID exists
+    if (!req.params.id) {
+      console.log('No ID provided in request');
+      return res.status(400).json({
+        success: false,
+        message: 'Thought ID is required',
+      });
+    }
+    
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      console.log('Invalid ID format:', req.params.id);
       return res.status(400).json({
         success: false,
         message: 'Invalid thought ID format',
+        receivedId: req.params.id,
       });
     }
 
@@ -386,11 +431,26 @@ exports.deleteThought = async (req, res) => {
   try {
     const mongoose = require('mongoose');
     
+    console.log('Delete thought - ID received:', req.params.id);
+    console.log('Delete thought - ID type:', typeof req.params.id);
+    console.log('Delete thought - Raw params:', req.params);
+    
+    // Check if ID exists
+    if (!req.params.id) {
+      console.log('No ID provided in request');
+      return res.status(400).json({
+        success: false,
+        message: 'Thought ID is required',
+      });
+    }
+    
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      console.log('Invalid ID format:', req.params.id);
       return res.status(400).json({
         success: false,
         message: 'Invalid thought ID format',
+        receivedId: req.params.id,
       });
     }
 

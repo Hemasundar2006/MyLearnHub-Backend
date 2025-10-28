@@ -15,6 +15,14 @@ const { adminOnly } = require('../../middleware/admin');
 router.use(protect);
 router.use(adminOnly);
 
+// Debug middleware to log all requests
+router.use((req, res, next) => {
+  console.log('Admin thoughts route hit:', req.method, req.path);
+  console.log('Route params:', req.params);
+  console.log('Query params:', req.query);
+  next();
+});
+
 // GET routes - order matters! Specific routes before parameterized routes
 router.get('/stats', getThoughtStats);
 router.get('/', getAllThoughts);
