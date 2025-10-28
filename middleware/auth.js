@@ -25,7 +25,7 @@ exports.protect = async (req, res, next) => {
     console.log('No token provided');
     return res.status(401).json({
       success: false,
-      message: 'Not authorized to access this route',
+      message: 'Not authorized. Send token in Authorization: Bearer <token> or x-auth-token/x-access-token header.',
     });
   }
 
@@ -59,7 +59,7 @@ exports.protect = async (req, res, next) => {
     console.log('Token verification failed:', error.message);
     return res.status(401).json({
       success: false,
-      message: 'Not authorized to access this route',
+      message: 'Invalid or expired token',
     });
   }
 };
