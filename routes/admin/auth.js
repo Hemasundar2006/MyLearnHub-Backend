@@ -5,11 +5,11 @@ const {
   getAdminProfile,
 } = require('../../controllers/adminController');
 const { protect } = require('../../middleware/auth');
-const { adminOnly } = require('../../middleware/admin');
+const { admin } = require('../../middleware/admin');
 
 // Admin authentication routes
 router.post('/login', adminLogin);
-router.get('/profile', protect, adminOnly, getAdminProfile);
+router.get('/profile', protect, admin, getAdminProfile);
 
 module.exports = router;
 

@@ -8,11 +8,11 @@ const {
   getSettingsStats,
 } = require('../../controllers/settingsController');
 const { protect } = require('../../middleware/auth');
-const { adminOnly } = require('../../middleware/admin');
+const { admin } = require('../../middleware/admin');
 
 // All routes are protected and admin-only
 router.use(protect);
-router.use(adminOnly);
+router.use(admin);
 
 router.get('/stats', getSettingsStats);
 router.get('/', getAllSettings);

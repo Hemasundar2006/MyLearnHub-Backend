@@ -11,11 +11,11 @@ const {
   incrementDownloads,
 } = require('../../controllers/contentController');
 const { protect } = require('../../middleware/auth');
-const { adminOnly } = require('../../middleware/admin');
+const { admin } = require('../../middleware/admin');
 
 // All routes are protected and admin-only
 router.use(protect);
-router.use(adminOnly);
+router.use(admin);
 
 router.get('/stats', getContentStats);
 

@@ -9,11 +9,11 @@ const {
   deleteThought,
 } = require('../../controllers/adminThoughtController');
 const { protect } = require('../../middleware/auth');
-const { adminOnly } = require('../../middleware/admin');
+const { admin } = require('../../middleware/admin');
 
 // All routes are protected and require admin role
 router.use(protect);
-router.use(adminOnly);
+router.use(admin);
 
 // Debug middleware to log all requests
 router.use((req, res, next) => {
