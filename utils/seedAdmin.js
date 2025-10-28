@@ -20,13 +20,6 @@ const seedAdmin = async () => {
       password: process.env.ADMIN_PASSWORD || 'Admin@123',
       role: 'admin',
       avatar: 'https://ui-avatars.com/api/?name=Admin&background=667eea',
-      coins: 10000, // Admin starts with 10,000 coins
-      coinTransactions: [{
-        amount: 10000,
-        type: 'bonus',
-        reason: 'Initial admin coin allocation',
-        timestamp: new Date(),
-      }],
     });
 
     console.log('✅ Default admin user created successfully');

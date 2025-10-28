@@ -6,11 +6,11 @@ const {
   getPerformanceMetrics,
 } = require('../../controllers/dashboardController');
 const { protect } = require('../../middleware/auth');
-const { admin } = require('../../middleware/admin');
+const { adminOnly } = require('../../middleware/admin');
 
 // All routes are protected and admin-only
 router.use(protect);
-router.use(admin);
+router.use(adminOnly);
 
 router.get('/stats', getDashboardStats);
 router.get('/activity', getRecentActivity);

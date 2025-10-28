@@ -5,7 +5,7 @@ require('dotenv').config();
 const updateAdminCoins = async () => {
   try {
     // Connect to database
-    await mongoose.connect(process.env.MONGO_URI || 'mongodb+srv://hemasundar:hemasundar123@cluster0.6qj8x.mongodb.net/mylearnhub?retryWrites=true&w=majority');
+    await mongoose.connect(process.env.MONGO_URI || '');
     console.log('Connected to database');
 
     // Find admin user

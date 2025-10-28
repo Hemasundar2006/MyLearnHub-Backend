@@ -8,11 +8,11 @@ const {
   getCourseById,
 } = require('../../controllers/adminController');
 const { protect } = require('../../middleware/auth');
-const { admin } = require('../../middleware/admin');
+const { adminOnly } = require('../../middleware/admin');
 
 // All routes are protected and admin-only
 router.use(protect);
-router.use(admin);
+router.use(adminOnly);
 
 // Admin course management routes
 router.route('/')

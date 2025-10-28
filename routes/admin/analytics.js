@@ -8,11 +8,11 @@ const {
   getEnrollmentAnalytics,
 } = require('../../controllers/analyticsController');
 const { protect } = require('../../middleware/auth');
-const { admin } = require('../../middleware/admin');
+const { adminOnly } = require('../../middleware/admin');
 
 // All routes are protected and admin-only
 router.use(protect);
-router.use(admin);
+router.use(adminOnly);
 
 router.get('/overview', getAnalyticsOverview);
 router.get('/revenue', getRevenueAnalytics);

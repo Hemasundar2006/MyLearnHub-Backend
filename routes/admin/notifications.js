@@ -9,11 +9,11 @@ const {
   getNotificationStats,
 } = require('../../controllers/notificationController');
 const { protect } = require('../../middleware/auth');
-const { admin } = require('../../middleware/admin');
+const { adminOnly } = require('../../middleware/admin');
 
 // All routes are protected and admin-only
 router.use(protect);
-router.use(admin);
+router.use(adminOnly);
 
 // Debug middleware for POST requests
 router.use((req, res, next) => {

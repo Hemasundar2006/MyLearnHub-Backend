@@ -305,23 +305,20 @@ exports.approveThought = async (req, res) => {
     thought.notificationId = notification._id;
     await thought.save();
 
-    // Award 10 coins to the user who submitted the thought (transfer from admin)
+    // Award 10 coins to the user who submitted the thought
     const COIN_REWARD = 10;
-    const { transferCoinsFromAdmin } = require('../utils/coinTransfer');
+    const submitter = await User.findById(thought.submittedBy._id);
     
-    let coinTransferResult = null;
-    if (thought.submittedBy._id) {
-      try {
-        coinTransferResult = await transferCoinsFromAdmin(
-          thought.submittedBy._id,
-          COIN_REWARD,
-          `Thought approved: "${thought.title}"`,
-          thought._id
-        );
-      } catch (error) {
-        console.error('Coin transfer failed:', error.message);
-        // Continue with approval even if coin transfer fails
-      }
+    if (submitter) {
+      submitter.coins += COIN_REWARD;
+      submitter.coinTransactions.push({
+        amount: COIN_REWARD,
+        type: 'earned',
+        reason: `Thought approved: "${thought.title}"`,
+        relatedThought: thought._id,
+        timestamp: new Date(),
+      });
+      await submitter.save();
     }
 
     res.status(200).json({
@@ -342,9 +339,7 @@ exports.approveThought = async (req, res) => {
         },
         coinsAwarded: {
           amount: COIN_REWARD,
-          studentNewBalance: coinTransferResult ? coinTransferResult.studentNewBalance : 0,
-          adminNewBalance: coinTransferResult ? coinTransferResult.adminNewBalance : null,
-          transferSuccess: coinTransferResult ? true : false,
+          newBalance: submitter ? submitter.coins : 0,
         },
       },
     });

@@ -1,7 +1,6 @@
 const User = require('../models/User');
 const Course = require('../models/Course');
 const Enrollment = require('../models/Enrollment');
-const { getAdminCoinBalance } = require('../utils/coinTransfer');
 
 // @desc    Get dashboard statistics
 // @route   GET /api/admin/dashboard/stats
@@ -77,9 +76,6 @@ exports.getDashboardStats = async (req, res) => {
       ? ((revenueThisMonth - revenuePrevMonth) / revenuePrevMonth * 100).toFixed(2)
       : 100;
 
-    // Get admin coin balance
-    const adminCoinBalance = await getAdminCoinBalance();
-
     res.status(200).json({
       success: true,
       stats: {
@@ -91,7 +87,6 @@ exports.getDashboardStats = async (req, res) => {
         coursesThisMonth: coursesLast30Days,
         enrollmentsThisMonth: enrollmentsLast30Days,
         revenueThisMonth,
-        adminCoinBalance,
         growthRates: {
           users: parseFloat(userGrowthRate),
           enrollments: parseFloat(enrollmentGrowthRate),
