@@ -7,13 +7,17 @@ exports.protect = async (req, res, next) => {
 
   console.log('Auth middleware - Headers:', req.headers.authorization);
 
-  // Check for token in Authorization header
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer')
-  ) {
-    token = req.headers.authorization.split(' ')[1];
-    console.log('Token found:', token ? 'Yes' : 'No');
+  // Check for token in common headers (Authorization, x-auth-token, x-access-token)
+  const authHeader = req.headers.authorization;
+  if (authHeader && /^Bearer\s+/i.test(authHeader)) {
+    token = authHeader.split(' ')[1];
+    console.log('Token found in Authorization header:', token ? 'Yes' : 'No');
+  } else if (req.headers['x-auth-token']) {
+    token = req.headers['x-auth-token'];
+    console.log('Token found in x-auth-token header:', token ? 'Yes' : 'No');
+  } else if (req.headers['x-access-token']) {
+    token = req.headers['x-access-token'];
+    console.log('Token found in x-access-token header:', token ? 'Yes' : 'No');
   }
 
   // Make sure token exists
