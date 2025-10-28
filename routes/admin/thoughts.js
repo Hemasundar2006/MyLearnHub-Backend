@@ -20,6 +20,8 @@ router.use((req, res, next) => {
   console.log('Admin thoughts route hit:', req.method, req.path);
   console.log('Route params:', req.params);
   console.log('Query params:', req.query);
+  console.log('Request body:', req.body);
+  console.log('Request headers:', req.headers);
   next();
 });
 

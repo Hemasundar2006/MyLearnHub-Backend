@@ -162,6 +162,13 @@ exports.getThoughtById = async (req, res) => {
         success: false,
         message: 'Invalid thought ID format',
         receivedId: req.params.id,
+        idType: typeof req.params.id,
+        idLength: req.params.id ? req.params.id.length : 'undefined',
+        expectedFormat: '24-character hexadecimal string (e.g., 507f1f77bcf86cd799439011)',
+        debug: {
+          params: req.params,
+          body: req.body
+        }
       });
     }
 
@@ -249,6 +256,13 @@ exports.approveThought = async (req, res) => {
         success: false,
         message: 'Invalid thought ID format',
         receivedId: req.params.id,
+        idType: typeof req.params.id,
+        idLength: req.params.id ? req.params.id.length : 'undefined',
+        expectedFormat: '24-character hexadecimal string (e.g., 507f1f77bcf86cd799439011)',
+        debug: {
+          params: req.params,
+          body: req.body
+        }
       });
     }
 
@@ -367,6 +381,13 @@ exports.rejectThought = async (req, res) => {
         success: false,
         message: 'Invalid thought ID format',
         receivedId: req.params.id,
+        idType: typeof req.params.id,
+        idLength: req.params.id ? req.params.id.length : 'undefined',
+        expectedFormat: '24-character hexadecimal string (e.g., 507f1f77bcf86cd799439011)',
+        debug: {
+          params: req.params,
+          body: req.body
+        }
       });
     }
 
@@ -392,6 +413,11 @@ exports.rejectThought = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Please provide review notes explaining the rejection',
+        receivedReviewNotes: reviewNotes,
+        debug: {
+          body: req.body,
+          reviewNotesType: typeof reviewNotes
+        }
       });
     }
 
@@ -451,6 +477,13 @@ exports.deleteThought = async (req, res) => {
         success: false,
         message: 'Invalid thought ID format',
         receivedId: req.params.id,
+        idType: typeof req.params.id,
+        idLength: req.params.id ? req.params.id.length : 'undefined',
+        expectedFormat: '24-character hexadecimal string (e.g., 507f1f77bcf86cd799439011)',
+        debug: {
+          params: req.params,
+          body: req.body
+        }
       });
     }
 
