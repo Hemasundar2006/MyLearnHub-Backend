@@ -48,6 +48,7 @@ app.get('/', (req, res) => {
       profile: '/api/profile',
       notifications: '/api/notifications',
       thoughts: '/api/thoughts',
+      doubts: '/api/doubts',
       admin: {
         auth: '/api/admin/auth',
         dashboard: '/api/admin/dashboard',
@@ -58,6 +59,7 @@ app.get('/', (req, res) => {
         thoughts: '/api/admin/thoughts',
         content: '/api/admin/content',
         settings: '/api/admin/settings',
+        doubts: '/api/admin/doubts',
       },
     },
   });
@@ -78,6 +80,7 @@ app.use('/api/courses', require('./routes/courses'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/thoughts', require('./routes/thoughts'));
+app.use('/api/doubts', require('./routes/doubts'));
 
 // Admin Routes
 app.use('/api/admin/auth', require('./routes/admin/auth'));
@@ -89,6 +92,7 @@ app.use('/api/admin/notifications', require('./routes/admin/notifications'));
 app.use('/api/admin/thoughts', require('./routes/admin/thoughts'));
 app.use('/api/admin/content', require('./routes/admin/content'));
 app.use('/api/admin/settings', require('./routes/admin/settings'));
+app.use('/api/admin/doubts', require('./routes/admin/doubts'));
 
 // 404 handler
 app.use((req, res) => {
@@ -139,6 +143,12 @@ const server = app.listen(PORT, () => {
   console.log('     - GET    /api/thoughts/my-stats');
   console.log('     - GET    /api/thoughts/coins');
   console.log('     - GET    /api/thoughts/coins/transactions');
+  console.log('   User Doubts:');
+  console.log('     - POST   /api/doubts');
+  console.log('     - GET    /api/doubts/my-doubts');
+  console.log('     - GET    /api/doubts/my-stats');
+  console.log('     - DELETE /api/doubts/:id');
+  console.log('     - GET    /api/doubts/leaderboard');
   console.log('   Public Courses:');
   console.log('     - GET    /api/courses');
   console.log('     - GET    /api/courses/:id');
@@ -176,6 +186,12 @@ const server = app.listen(PORT, () => {
   console.log('   Admin Settings:');
   console.log('     - GET    /api/admin/settings');
   console.log('     - PUT    /api/admin/settings/:userId');
+  console.log('   Admin Doubts:');
+  console.log('     - GET    /api/admin/doubts');
+  console.log('     - GET    /api/admin/doubts/stats');
+  console.log('     - GET    /api/admin/doubts/leaderboard');
+  console.log('     - POST   /api/admin/doubts/:id/answer');
+  console.log('     - POST   /api/admin/doubts/:id/close');
   console.log('========================================\n');
 });
 
