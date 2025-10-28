@@ -6,22 +6,13 @@ const User = require('../models/User');
 // @access  Private (User)
 exports.submitThought = async (req, res) => {
   try {
-    const { title, message, category, priority } = req.body;
+    const { title, message } = req.body;
 
     // Validate required fields
-    if (!title || !message || !category) {
+    if (!title || !message) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide title, message, and category',
-      });
-    }
-
-    // Validate category
-    const validCategories = ['announcement', 'course', 'system', 'assignment', 'general'];
-    if (!validCategories.includes(category)) {
-      return res.status(400).json({
-        success: false,
-        message: `Category must be one of: ${validCategories.join(', ')}`,
+        message: 'Please provide title and message',
       });
     }
 
@@ -29,8 +20,6 @@ exports.submitThought = async (req, res) => {
     const thought = await Thought.create({
       title: title.trim(),
       message: message.trim(),
-      category,
-      priority: priority || 'medium',
       submittedBy: req.user.id,
       status: 'pending',
     });
@@ -46,8 +35,6 @@ exports.submitThought = async (req, res) => {
           id: thought._id,
           title: thought.title,
           message: thought.message,
-          category: thought.category,
-          priority: thought.priority,
           status: thought.status,
           submittedBy: {
             id: thought.submittedBy._id,
@@ -112,8 +99,6 @@ exports.getUserThoughts = async (req, res) => {
       id: thought._id,
       title: thought.title,
       message: thought.message,
-      category: thought.category,
-      priority: thought.priority,
       status: thought.status,
       reviewedBy: thought.reviewedBy ? {
         name: thought.reviewedBy.name,
@@ -284,7 +269,7 @@ exports.getCoinTransactions = async (req, res) => {
 
     const user = await User.findById(req.user.id)
       .select('coins coinTransactions')
-      .populate('coinTransactions.relatedThought', 'title category status');
+      .populate('coinTransactions.relatedThought', 'title status');
 
     if (!user) {
       return res.status(404).json({
@@ -311,7 +296,6 @@ exports.getCoinTransactions = async (req, res) => {
       relatedThought: transaction.relatedThought ? {
         id: transaction.relatedThought._id,
         title: transaction.relatedThought.title,
-        category: transaction.relatedThought.category,
         status: transaction.relatedThought.status,
       } : null,
       timestamp: transaction.timestamp,

@@ -7,7 +7,7 @@ const User = require('../models/User');
 // @access  Private (Admin)
 exports.getAllThoughts = async (req, res) => {
   try {
-    const { status, category, search, sortBy = 'newest', page = 1, limit = 20 } = req.query;
+    const { status, search, sortBy = 'newest', page = 1, limit = 20 } = req.query;
 
     let query = {};
 
@@ -16,10 +16,7 @@ exports.getAllThoughts = async (req, res) => {
       query.status = status;
     }
 
-    // Filter by category
-    if (category && category !== 'all') {
-      query.category = category;
-    }
+    // No category filter anymore
 
     // Search functionality
     if (search && search.trim() !== '') {
@@ -46,16 +43,7 @@ exports.getAllThoughts = async (req, res) => {
       case 'oldest':
         thoughts.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
         break;
-      case 'priority':
-        const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
-        thoughts.sort((a, b) => {
-          const diff = priorityOrder[a.priority] - priorityOrder[b.priority];
-          if (diff === 0) {
-            return new Date(b.createdAt) - new Date(a.createdAt);
-          }
-          return diff;
-        });
-        break;
+      // priority sorting removed
       default:
         thoughts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
@@ -69,8 +57,6 @@ exports.getAllThoughts = async (req, res) => {
       id: thought._id,
       title: thought.title,
       message: thought.message,
-      category: thought.category,
-      priority: thought.priority,
       status: thought.status,
       submittedBy: {
         id: thought.submittedBy._id,
@@ -126,28 +112,7 @@ exports.getThoughtStats = async (req, res) => {
       Thought.countDocuments({}),
     ]);
 
-    // Get counts by category (for pending only)
-    const categoryStats = await Thought.aggregate([
-      { $match: { status: 'pending' } },
-      {
-        $group: {
-          _id: '$category',
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
-    const categoryCounts = {
-      announcement: 0,
-      course: 0,
-      system: 0,
-      assignment: 0,
-      general: 0,
-    };
-
-    categoryStats.forEach(stat => {
-      categoryCounts[stat._id] = stat.count;
-    });
+    // Category stats removed
 
     res.status(200).json({
       success: true,
@@ -157,7 +122,6 @@ exports.getThoughtStats = async (req, res) => {
           pending,
           approved,
           rejected,
-          categoryCounts,
         },
       },
     });
@@ -205,8 +169,6 @@ exports.getThoughtById = async (req, res) => {
           id: thought._id,
           title: thought.title,
           message: thought.message,
-          category: thought.category,
-          priority: thought.priority,
           status: thought.status,
           submittedBy: {
             id: thought.submittedBy._id,
@@ -282,13 +244,13 @@ exports.approveThought = async (req, res) => {
     const notification = await Notification.create({
       title: thought.title,
       message: thought.message,
-      type: thought.category,
+      type: 'general',
       targetAudience: targetAudience,
-      priority: priority || thought.priority,
+      priority: priority || 'medium',
       status: 'sent',
       sentAt: new Date(),
       sentBy: req.user.id,
-      icon: getIconForCategory(thought.category),
+      icon: '💡',
     });
 
     // Update thought status

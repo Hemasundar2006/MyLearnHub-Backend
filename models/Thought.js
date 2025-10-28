@@ -14,12 +14,7 @@ const thoughtSchema = new mongoose.Schema(
       trim: true,
       maxlength: [1000, 'Message cannot be more than 1000 characters'],
     },
-    category: {
-      type: String,
-      enum: ['announcement', 'course', 'system', 'assignment', 'general'],
-      default: 'general',
-      required: [true, 'Please provide a category'],
-    },
+    
     submittedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -45,11 +40,7 @@ const thoughtSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Notification',
     },
-    priority: {
-      type: String,
-      enum: ['low', 'medium', 'high', 'urgent'],
-      default: 'medium',
-    },
+    
   },
   {
     timestamps: true,
