@@ -5,27 +5,21 @@ const User = require('../models/User');
 exports.protect = async (req, res, next) => {
   let token;
 
-  console.log('Auth middleware - Headers:', req.headers.authorization);
+  console.log('Auth middleware - Headers present:', Boolean(req.headers.authorization));
 
-  // Check for token in common headers (Authorization, x-auth-token, x-access-token)
-  const authHeader = req.headers.authorization;
-  if (authHeader && /^Bearer\s+/i.test(authHeader)) {
-    token = authHeader.split(' ')[1];
-    console.log('Token found in Authorization header:', token ? 'Yes' : 'No');
-  } else if (req.headers['x-auth-token']) {
-    token = req.headers['x-auth-token'];
-    console.log('Token found in x-auth-token header:', token ? 'Yes' : 'No');
-  } else if (req.headers['x-access-token']) {
-    token = req.headers['x-access-token'];
-    console.log('Token found in x-access-token header:', token ? 'Yes' : 'No');
-  }
+  // Concise token extraction (Authorization Bearer, x-auth-token, x-access-token)
+  const authHeader = req.header('Authorization');
+  token = (authHeader && authHeader.replace(/^Bearer\s+/i, ''))
+    || req.header('x-auth-token')
+    || req.header('x-access-token')
+    || (req.cookies && req.cookies.token);
 
   // Make sure token exists
   if (!token) {
     console.log('No token provided');
     return res.status(401).json({
       success: false,
-      message: 'Not authorized. Send token in Authorization: Bearer <token> or x-auth-token/x-access-token header.',
+      message: 'Not authorized.',
     });
   }
 
@@ -59,7 +53,7 @@ exports.protect = async (req, res, next) => {
     console.log('Token verification failed:', error.message);
     return res.status(401).json({
       success: false,
-      message: 'Invalid or expired token',
+      message: 'Not authorized.',
     });
   }
 };
