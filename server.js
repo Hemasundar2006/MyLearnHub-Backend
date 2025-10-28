@@ -47,6 +47,7 @@ app.get('/', (req, res) => {
       courses: '/api/courses',
       profile: '/api/profile',
       notifications: '/api/notifications',
+      thoughts: '/api/thoughts',
       admin: {
         auth: '/api/admin/auth',
         dashboard: '/api/admin/dashboard',
@@ -54,6 +55,7 @@ app.get('/', (req, res) => {
         courses: '/api/admin/courses',
         analytics: '/api/admin/analytics',
         notifications: '/api/admin/notifications',
+        thoughts: '/api/admin/thoughts',
         content: '/api/admin/content',
         settings: '/api/admin/settings',
       },
@@ -75,6 +77,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/courses', require('./routes/courses'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/thoughts', require('./routes/thoughts'));
 
 // Admin Routes
 app.use('/api/admin/auth', require('./routes/admin/auth'));
@@ -83,6 +86,7 @@ app.use('/api/admin/dashboard', require('./routes/admin/dashboard'));
 app.use('/api/admin/users', require('./routes/admin/users'));
 app.use('/api/admin/analytics', require('./routes/admin/analytics'));
 app.use('/api/admin/notifications', require('./routes/admin/notifications'));
+app.use('/api/admin/thoughts', require('./routes/admin/thoughts'));
 app.use('/api/admin/content', require('./routes/admin/content'));
 app.use('/api/admin/settings', require('./routes/admin/settings'));
 
@@ -129,6 +133,12 @@ const server = app.listen(PORT, () => {
   console.log('     - GET    /api/notifications');
   console.log('     - GET    /api/notifications/unread-count');
   console.log('     - POST   /api/notifications/:id/read');
+  console.log('   User Thoughts:');
+  console.log('     - POST   /api/thoughts');
+  console.log('     - GET    /api/thoughts/my-thoughts');
+  console.log('     - GET    /api/thoughts/my-stats');
+  console.log('     - GET    /api/thoughts/coins');
+  console.log('     - GET    /api/thoughts/coins/transactions');
   console.log('   Public Courses:');
   console.log('     - GET    /api/courses');
   console.log('     - GET    /api/courses/:id');
@@ -156,6 +166,10 @@ const server = app.listen(PORT, () => {
   console.log('   Admin Notifications:');
   console.log('     - GET    /api/admin/notifications');
   console.log('     - POST   /api/admin/notifications');
+  console.log('   Admin Thoughts:');
+  console.log('     - GET    /api/admin/thoughts');
+  console.log('     - POST   /api/admin/thoughts/:id/approve');
+  console.log('     - POST   /api/admin/thoughts/:id/reject');
   console.log('   Admin Content:');
   console.log('     - GET    /api/admin/content');
   console.log('     - POST   /api/admin/content');

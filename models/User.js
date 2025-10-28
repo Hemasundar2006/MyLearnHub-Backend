@@ -38,6 +38,36 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    coins: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    coinTransactions: [
+      {
+        amount: {
+          type: Number,
+          required: true,
+        },
+        type: {
+          type: String,
+          enum: ['earned', 'spent', 'bonus', 'penalty'],
+          required: true,
+        },
+        reason: {
+          type: String,
+          required: true,
+        },
+        relatedThought: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Thought',
+        },
+        timestamp: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
   },
   {
     timestamps: true,
