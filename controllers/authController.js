@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const { generateToken } = require('../middleware/auth');
+const { sendRegistrationEmail } = require('../utils/emailService');
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -37,6 +38,23 @@ exports.register = async (req, res) => {
     // Generate token
     const token = generateToken(user._id);
 
+    // Send registration welcome email (non-blocking - don't wait for it)
+    sendRegistrationEmail({
+      name: user.name,
+      email: user.email,
+    })
+      .then((result) => {
+        if (result.success) {
+          console.log('✅ Registration email sent successfully to:', user.email);
+        } else {
+          console.error('❌ Failed to send registration email:', result.message || result.error);
+        }
+      })
+      .catch((error) => {
+        console.error('❌ Error sending registration email:', error.message || error);
+      });
+
+    // Return success response immediately (email is sent asynchronously)
     res.status(201).json({
       success: true,
       token,
@@ -47,6 +65,7 @@ exports.register = async (req, res) => {
         avatar: user.avatar,
         role: user.role,
       },
+      message: 'Registration successful! Welcome email has been sent.',
     });
   } catch (error) {
     console.error('Register error:', error);

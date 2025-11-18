@@ -81,6 +81,7 @@ app.use('/api/profile', require('./routes/profile'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/thoughts', require('./routes/thoughts'));
 app.use('/api/doubts', require('./routes/doubts'));
+app.use('/api/test', require('./routes/test'));
 
 // Admin Routes
 app.use('/api/admin/auth', require('./routes/admin/auth'));

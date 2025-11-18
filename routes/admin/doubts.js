@@ -8,13 +8,16 @@ const {
   getDoubtLeaderboard
 } = require('../../controllers/adminDoubtController');
 const { protect } = require('../../middleware/auth');
-const { adminOnly } = require('../../middleware/admin');
+const { admin } = require('../../middleware/admin');
 
 // Admin doubt routes
-router.get('/', protect, adminOnly, getAllDoubts);
-router.get('/stats', protect, adminOnly, getDoubtStats);
-router.get('/leaderboard', protect, adminOnly, getDoubtLeaderboard);
-router.post('/:id/answer', protect, adminOnly, answerDoubt);
-router.post('/:id/close', protect, adminOnly, closeDoubt);
+router.use(protect);
+router.use(admin);
+
+router.get('/', getAllDoubts);
+router.get('/stats', getDoubtStats);
+router.get('/leaderboard', getDoubtLeaderboard);
+router.post('/:id/answer', answerDoubt);
+router.post('/:id/close', closeDoubt);
 
 module.exports = router;

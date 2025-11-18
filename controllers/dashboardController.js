@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Course = require('../models/Course');
 const Enrollment = require('../models/Enrollment');
+const Doubt = require('../models/Doubt');
 
 // @desc    Get dashboard statistics
 // @route   GET /api/admin/dashboard/stats
@@ -16,6 +17,8 @@ exports.getDashboardStats = async (req, res) => {
     const totalUsers = await User.countDocuments();
     const totalCourses = await Course.countDocuments();
     const totalEnrollments = await Enrollment.countDocuments();
+    const totalDoubts = await Doubt.countDocuments();
+    const pendingDoubts = await Doubt.countDocuments({ status: 'pending' });
 
     // Users in last 30 days
     const usersLast30Days = await User.countDocuments({
@@ -83,6 +86,8 @@ exports.getDashboardStats = async (req, res) => {
         totalCourses,
         totalEnrollments,
         totalRevenue,
+        totalDoubts,
+        pendingDoubts,
         usersThisMonth: usersLast30Days,
         coursesThisMonth: coursesLast30Days,
         enrollmentsThisMonth: enrollmentsLast30Days,
@@ -131,6 +136,13 @@ exports.getRecentActivity = async (req, res) => {
       .select('title instructor createdAt status')
       .populate('createdBy', 'name');
 
+    // Get recent doubts
+    const recentDoubts = await Doubt.find()
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate('askedBy', 'name email')
+      .select('question status createdAt');
+
     // Combine and format activity
     const activity = [
       ...recentEnrollments.map(e => ({
@@ -152,6 +164,15 @@ exports.getRecentActivity = async (req, res) => {
         message: `New course "${c.title}" ${c.status === 'published' ? 'published' : 'created'} by ${c.createdBy?.name || c.instructor}`,
         timestamp: c.createdAt,
         icon: 'video',
+      })),
+      ...recentDoubts.map(d => ({
+        type: 'doubt',
+        message: `${d.askedBy?.name || 'User'} asked: "${d.question.substring(0, 50)}${d.question.length > 50 ? '...' : ''}"`,
+        user: d.askedBy,
+        timestamp: d.createdAt,
+        icon: 'question',
+        status: d.status,
+        doubtId: d._id,
       })),
     ];
 
