@@ -45,6 +45,7 @@ app.get('/', (req, res) => {
     endpoints: {
       auth: '/api/auth',
       courses: '/api/courses',
+      jobs: '/api/jobs',
       profile: '/api/profile',
       notifications: '/api/notifications',
       thoughts: '/api/thoughts',
@@ -60,6 +61,7 @@ app.get('/', (req, res) => {
         content: '/api/admin/content',
         settings: '/api/admin/settings',
         doubts: '/api/admin/doubts',
+        jobs: '/api/admin/jobs',
       },
     },
   });
@@ -77,6 +79,7 @@ app.get('/health', (req, res) => {
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/courses', require('./routes/courses'));
+app.use('/api/jobs', require('./routes/jobs'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/thoughts', require('./routes/thoughts'));
@@ -96,6 +99,7 @@ app.use('/api/admin/content', require('./routes/admin/content'));
 app.use('/api/admin/settings', require('./routes/admin/settings'));
 app.use('/api/admin/doubts', require('./routes/admin/doubts'));
 app.use('/api/admin/rewards', require('./routes/admin/rewards'));
+app.use('/api/admin/jobs', require('./routes/admin/jobs'));
 
 // 404 handler
 app.use((req, res) => {
@@ -160,6 +164,11 @@ const server = app.listen(PORT, () => {
   console.log('   Public Courses:');
   console.log('     - GET    /api/courses');
   console.log('     - GET    /api/courses/:id');
+  console.log('   Public Jobs:');
+  console.log('     - GET    /api/jobs');
+  console.log('     - GET    /api/jobs/:id');
+  console.log('     - POST   /api/jobs/:jobId/apply');
+  console.log('     - GET    /api/jobs/applications/me');
   console.log('   Admin Auth:');
   console.log('     - POST   /api/admin/auth/login');
   console.log('     - GET    /api/admin/auth/profile');
@@ -205,6 +214,15 @@ const server = app.listen(PORT, () => {
   console.log('     - GET    /api/admin/rewards/users');
   console.log('     - GET    /api/admin/rewards/users/:userId');
   console.log('     - GET    /api/admin/rewards/referrals');
+  console.log('   Admin Jobs:');
+  console.log('     - GET    /api/admin/jobs');
+  console.log('     - POST   /api/admin/jobs');
+  console.log('     - GET    /api/admin/jobs/:id');
+  console.log('     - PUT    /api/admin/jobs/:id');
+  console.log('     - DELETE /api/admin/jobs/:id');
+  console.log('     - GET    /api/admin/jobs/:jobId/applications');
+  console.log('     - GET    /api/admin/jobs/applications');
+  console.log('     - PUT    /api/admin/jobs/applications/:applicationId/status');
   console.log('========================================\n');
 });
 
