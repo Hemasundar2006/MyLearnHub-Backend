@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const userSchema = new mongoose.Schema(
   {
@@ -62,10 +63,55 @@ const userSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: 'Thought',
         },
+        metadata: {
+          type: mongoose.Schema.Types.Mixed,
+        },
         timestamp: {
           type: Date,
           default: Date.now,
         },
+      },
+    ],
+    referralCode: {
+      type: String,
+      unique: true,
+      sparse: true,
+      uppercase: true,
+      trim: true,
+    },
+    referredBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      index: true,
+    },
+    referralStats: {
+      totalShares: { type: Number, default: 0 },
+      totalClicks: { type: Number, default: 0 },
+      successfulReferrals: { type: Number, default: 0 },
+      totalCoinsEarned: { type: Number, default: 0 },
+      lastReferralAt: { type: Date },
+    },
+    referralHistory: [
+      {
+        referredUser: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+        },
+        referredEmail: String,
+        referredName: String,
+        status: {
+          type: String,
+          enum: ['completed', 'pending', 'failed'],
+          default: 'completed',
+        },
+        rewardForReferrer: Number,
+        rewardForInvitee: Number,
+        note: String,
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+        completedAt: Date,
       },
     ],
   },
@@ -98,6 +144,45 @@ userSchema.pre('save', function (next) {
   }
   next();
 });
+
+userSchema.pre('save', async function (next) {
+  if (this.referralCode) {
+    return next();
+  }
+
+  try {
+    this.referralCode = await this.constructor.generateUniqueReferralCode(
+      this.name
+    );
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+userSchema.statics.generateUniqueReferralCode = async function (name = '') {
+  const base =
+    (name && name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase()) ||
+    'MLH';
+
+  let code;
+  let exists = true;
+  let attempts = 0;
+
+  while (exists) {
+    const random = crypto.randomBytes(3).toString('hex').toUpperCase();
+    code = `${base}${random}`;
+    attempts += 1;
+
+    if (attempts > 10) {
+      code = `MLH${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+    }
+
+    exists = await this.findOne({ referralCode: code });
+  }
+
+  return code;
+};
 
 module.exports = mongoose.model('User', userSchema);
 

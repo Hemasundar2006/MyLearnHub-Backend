@@ -81,6 +81,7 @@ app.use('/api/profile', require('./routes/profile'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/thoughts', require('./routes/thoughts'));
 app.use('/api/doubts', require('./routes/doubts'));
+app.use('/api/rewards', require('./routes/rewards'));
 app.use('/api/test', require('./routes/test'));
 
 // Admin Routes
@@ -94,6 +95,7 @@ app.use('/api/admin/thoughts', require('./routes/admin/thoughts'));
 app.use('/api/admin/content', require('./routes/admin/content'));
 app.use('/api/admin/settings', require('./routes/admin/settings'));
 app.use('/api/admin/doubts', require('./routes/admin/doubts'));
+app.use('/api/admin/rewards', require('./routes/admin/rewards'));
 
 // 404 handler
 app.use((req, res) => {
@@ -144,6 +146,11 @@ const server = app.listen(PORT, () => {
   console.log('     - GET    /api/thoughts/my-stats');
   console.log('     - GET    /api/thoughts/coins');
   console.log('     - GET    /api/thoughts/coins/transactions');
+  console.log('   Rewards:');
+  console.log('     - GET    /api/rewards/dashboard');
+  console.log('     - GET    /api/rewards/referrals');
+  console.log('     - GET    /api/rewards/history');
+  console.log('     - POST   /api/rewards/track');
   console.log('   User Doubts:');
   console.log('     - POST   /api/doubts');
   console.log('     - GET    /api/doubts/my-doubts');
@@ -193,6 +200,11 @@ const server = app.listen(PORT, () => {
   console.log('     - GET    /api/admin/doubts/leaderboard');
   console.log('     - POST   /api/admin/doubts/:id/answer');
   console.log('     - POST   /api/admin/doubts/:id/close');
+  console.log('   Admin Rewards:');
+  console.log('     - GET    /api/admin/rewards/overview');
+  console.log('     - GET    /api/admin/rewards/users');
+  console.log('     - GET    /api/admin/rewards/users/:userId');
+  console.log('     - GET    /api/admin/rewards/referrals');
   console.log('========================================\n');
 });
 
