@@ -123,12 +123,15 @@ exports.register = async (req, res) => {
       }
     }
 
+    const referralCodeForUser = await User.generateUniqueReferralCode(name);
+
     // Create user
     const user = await User.create({
       name,
       email,
       password,
       role: 'user', // Default role
+      referralCode: referralCodeForUser,
       ...(referrer && { referredBy: referrer._id }),
     });
 
