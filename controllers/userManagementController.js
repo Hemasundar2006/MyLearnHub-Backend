@@ -6,24 +6,47 @@ const Enrollment = require('../models/Enrollment');
 // @access  Private/Admin
 exports.getAllUsers = async (req, res) => {
   try {
-    const { search, role, status, page = 1, limit = 10 } = req.query;
+    const { search, role, status, profileComplete, page = 1, limit = 10 } = req.query;
 
     // Build query
     let query = {};
+    const andConditions = [];
 
+    // Search filter
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-      ];
+      andConditions.push({
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } },
+        ],
+      });
     }
 
+    // Role filter
     if (role) {
       query.role = role;
     }
 
+    // Status filter
     if (status) {
       query.isActive = status === 'active';
+    }
+
+    // Profile completion filter
+    if (profileComplete === 'true') {
+      query.profileCompletionRewardClaimed = true;
+    } else if (profileComplete === 'false') {
+      andConditions.push({
+        $or: [
+          { profileCompletionRewardClaimed: false },
+          { profileCompletionRewardClaimed: { $exists: false } },
+        ],
+      });
+    }
+
+    // Combine $and conditions if any
+    if (andConditions.length > 0) {
+      query.$and = andConditions;
     }
 
     // Pagination
@@ -35,13 +58,45 @@ exports.getAllUsers = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit));
 
-    // Get enrollment count for each user
+    // Get enrollment count and profile completion for each user
     const usersWithEnrollments = await Promise.all(
       users.map(async (user) => {
         const enrollmentCount = await Enrollment.countDocuments({ user: user._id });
+        
+        // Calculate profile completion
+        const profile = user.profile || {};
+        const profileFields = {
+          name: user.name ? 1 : 0,
+          email: user.email ? 1 : 0,
+          avatar: user.avatar && user.avatar !== 'https://ui-avatars.com/api/?name=User&background=random' ? 1 : 0,
+          mobileNumber: profile.mobileNumber && profile.mobileNumber.trim() ? 1 : 0,
+          college: profile.college && profile.college.trim() ? 1 : 0,
+          currentYear: profile.currentYear && profile.currentYear.trim() ? 1 : 0,
+          graduationYear: profile.graduationYear ? 1 : 0,
+          skills: profile.skills && Array.isArray(profile.skills) && profile.skills.length > 0 ? 1 : 0,
+          interests: profile.interests && Array.isArray(profile.interests) && profile.interests.length > 0 ? 1 : 0,
+          bio: profile.bio && profile.bio.trim() ? 1 : 0,
+          location: profile.location && profile.location.trim() ? 1 : 0,
+          website: profile.website && profile.website.trim() ? 1 : 0,
+          github: profile.github && profile.github.trim() ? 1 : 0,
+          linkedin: profile.linkedin && profile.linkedin.trim() ? 1 : 0,
+          experienceLevel: profile.experienceLevel && profile.experienceLevel.trim() ? 1 : 0,
+        };
+        const totalFields = Object.keys(profileFields).length;
+        const filledFields = Object.values(profileFields).reduce((sum, val) => sum + val, 0);
+        const profileCompletionPercentage = Math.round((filledFields / totalFields) * 100);
+        
         return {
           ...user.toObject(),
           enrollmentCount,
+          profileCompletion: {
+            percentage: profileCompletionPercentage,
+            filledFields,
+            totalFields,
+            isComplete: profileCompletionPercentage === 100,
+            rewardClaimed: user.profileCompletionRewardClaimed || false,
+            rewardClaimedAt: user.profileCompletionRewardClaimedAt || null,
+          },
         };
       })
     );
@@ -85,12 +140,43 @@ exports.getUserById = async (req, res) => {
       .populate('course', 'title image price')
       .sort({ enrolledAt: -1 });
 
+    // Calculate profile completion
+    const profile = user.profile || {};
+    const profileFields = {
+      name: user.name ? 1 : 0,
+      email: user.email ? 1 : 0,
+      avatar: user.avatar && user.avatar !== 'https://ui-avatars.com/api/?name=User&background=random' ? 1 : 0,
+      mobileNumber: profile.mobileNumber && profile.mobileNumber.trim() ? 1 : 0,
+      college: profile.college && profile.college.trim() ? 1 : 0,
+      currentYear: profile.currentYear && profile.currentYear.trim() ? 1 : 0,
+      graduationYear: profile.graduationYear ? 1 : 0,
+      skills: profile.skills && Array.isArray(profile.skills) && profile.skills.length > 0 ? 1 : 0,
+      interests: profile.interests && Array.isArray(profile.interests) && profile.interests.length > 0 ? 1 : 0,
+      bio: profile.bio && profile.bio.trim() ? 1 : 0,
+      location: profile.location && profile.location.trim() ? 1 : 0,
+      website: profile.website && profile.website.trim() ? 1 : 0,
+      github: profile.github && profile.github.trim() ? 1 : 0,
+      linkedin: profile.linkedin && profile.linkedin.trim() ? 1 : 0,
+      experienceLevel: profile.experienceLevel && profile.experienceLevel.trim() ? 1 : 0,
+    };
+    const totalFields = Object.keys(profileFields).length;
+    const filledFields = Object.values(profileFields).reduce((sum, val) => sum + val, 0);
+    const profileCompletionPercentage = Math.round((filledFields / totalFields) * 100);
+
     res.status(200).json({
       success: true,
       user: {
         ...user.toObject(),
         enrollments,
         enrollmentCount: enrollments.length,
+        profileCompletion: {
+          percentage: profileCompletionPercentage,
+          filledFields,
+          totalFields,
+          isComplete: profileCompletionPercentage === 100,
+          rewardClaimed: user.profileCompletionRewardClaimed || false,
+          rewardClaimedAt: user.profileCompletionRewardClaimedAt || null,
+        },
       },
     });
   } catch (error) {

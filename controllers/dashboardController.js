@@ -19,6 +19,10 @@ exports.getDashboardStats = async (req, res) => {
     const totalEnrollments = await Enrollment.countDocuments();
     const totalDoubts = await Doubt.countDocuments();
     const pendingDoubts = await Doubt.countDocuments({ status: 'pending' });
+    const totalProfileCompletions = await User.countDocuments({
+      profileCompletionRewardClaimed: true,
+      role: 'user',
+    });
 
     // Users in last 30 days
     const usersLast30Days = await User.countDocuments({
@@ -79,6 +83,13 @@ exports.getDashboardStats = async (req, res) => {
       ? ((revenueThisMonth - revenuePrevMonth) / revenuePrevMonth * 100).toFixed(2)
       : 100;
 
+    // Profile completions in last 30 days
+    const profileCompletionsLast30Days = await User.countDocuments({
+      profileCompletionRewardClaimed: true,
+      profileCompletionRewardClaimedAt: { $gte: thirtyDaysAgo },
+      role: 'user',
+    });
+
     res.status(200).json({
       success: true,
       stats: {
@@ -88,10 +99,12 @@ exports.getDashboardStats = async (req, res) => {
         totalRevenue,
         totalDoubts,
         pendingDoubts,
+        totalProfileCompletions,
         usersThisMonth: usersLast30Days,
         coursesThisMonth: coursesLast30Days,
         enrollmentsThisMonth: enrollmentsLast30Days,
         revenueThisMonth,
+        profileCompletionsThisMonth: profileCompletionsLast30Days,
         growthRates: {
           users: parseFloat(userGrowthRate),
           enrollments: parseFloat(enrollmentGrowthRate),
@@ -143,6 +156,15 @@ exports.getRecentActivity = async (req, res) => {
       .populate('askedBy', 'name email')
       .select('question status createdAt');
 
+    // Get recent profile completions (users who claimed profile completion reward)
+    const recentProfileCompletions = await User.find({
+      profileCompletionRewardClaimed: true,
+      role: 'user', // Only regular users, not admins
+    })
+      .sort({ profileCompletionRewardClaimedAt: -1 })
+      .limit(limit)
+      .select('name email avatar profile profileCompletionRewardClaimedAt createdAt');
+
     // Combine and format activity
     const activity = [
       ...recentEnrollments.map(e => ({
@@ -173,6 +195,20 @@ exports.getRecentActivity = async (req, res) => {
         icon: 'question',
         status: d.status,
         doubtId: d._id,
+      })),
+      ...recentProfileCompletions.map(u => ({
+        type: 'profile_completion',
+        message: `${u.name} completed their profile and claimed 100 coins reward`,
+        user: {
+          id: u._id,
+          name: u.name,
+          email: u.email,
+          avatar: u.avatar,
+        },
+        profile: u.profile || {},
+        timestamp: u.profileCompletionRewardClaimedAt,
+        icon: 'check-circle',
+        rewardAmount: 100,
       })),
     ];
 
