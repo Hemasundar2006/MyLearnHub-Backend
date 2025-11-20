@@ -3,6 +3,66 @@ const Enrollment = require('../models/Enrollment');
 const Settings = require('../models/Settings');
 const bcrypt = require('bcryptjs');
 
+// Helper function to calculate profile completion percentage
+const calculateProfileCompletion = (user) => {
+  const profile = user.profile || {};
+  
+  // Define all profile fields to check
+  const fields = {
+    // Basic fields (always present)
+    name: user.name ? 1 : 0,
+    email: user.email ? 1 : 0,
+    avatar: user.avatar && user.avatar !== 'https://ui-avatars.com/api/?name=User&background=random' ? 1 : 0,
+    
+    // Profile fields
+    mobileNumber: profile.mobileNumber && profile.mobileNumber.trim() ? 1 : 0,
+    college: profile.college && profile.college.trim() ? 1 : 0,
+    currentYear: profile.currentYear && profile.currentYear.trim() ? 1 : 0,
+    graduationYear: profile.graduationYear ? 1 : 0,
+    skills: profile.skills && Array.isArray(profile.skills) && profile.skills.length > 0 ? 1 : 0,
+    interests: profile.interests && Array.isArray(profile.interests) && profile.interests.length > 0 ? 1 : 0,
+    bio: profile.bio && profile.bio.trim() ? 1 : 0,
+    location: profile.location && profile.location.trim() ? 1 : 0,
+    website: profile.website && profile.website.trim() ? 1 : 0,
+    github: profile.github && profile.github.trim() ? 1 : 0,
+    linkedin: profile.linkedin && profile.linkedin.trim() ? 1 : 0,
+    experienceLevel: profile.experienceLevel && profile.experienceLevel.trim() ? 1 : 0,
+  };
+  
+  const totalFields = Object.keys(fields).length;
+  const filledFields = Object.values(fields).reduce((sum, val) => sum + val, 0);
+  const percentage = Math.round((filledFields / totalFields) * 100);
+  
+  // Get missing fields for suggestions
+  const missingFields = Object.entries(fields)
+    .filter(([key, value]) => value === 0)
+    .map(([key]) => key);
+  
+  return {
+    percentage,
+    filledFields,
+    totalFields,
+    missingFields,
+    isComplete: percentage === 100,
+  };
+};
+
+// Helper function to calculate coin achievement percentage
+const calculateCoinAchievement = (user) => {
+  const COIN_TARGET = 5000;
+  const currentCoins = user.coins || 0;
+  const percentage = Math.min(Math.round((currentCoins / COIN_TARGET) * 100), 100);
+  const remainingCoins = Math.max(COIN_TARGET - currentCoins, 0);
+  
+  return {
+    currentCoins,
+    targetCoins: COIN_TARGET,
+    percentage,
+    remainingCoins,
+    isAchieved: currentCoins >= COIN_TARGET,
+  };
+};
+
 // @desc    Get user profile (already exists in authController)
 // @route   GET /api/profile
 // @access  Private
@@ -26,6 +86,12 @@ exports.getProfile = async (req, res) => {
       status: 'completed',
     });
 
+    // Calculate profile completion
+    const profileCompletion = calculateProfileCompletion(user);
+    
+    // Calculate coin achievement
+    const coinAchievement = calculateCoinAchievement(user);
+
     res.status(200).json({
       success: true,
       user: {
@@ -36,7 +102,10 @@ exports.getProfile = async (req, res) => {
         role: user.role,
         isActive: user.isActive,
         createdAt: user.createdAt,
+        coins: user.coins || 0,
         profile: user.profile || {},
+        profileCompletion,
+        coinAchievement,
         stats: {
           enrolledCourses: enrollmentCount,
           completedCourses: completedCount,
@@ -183,6 +252,9 @@ exports.updateProfile = async (req, res) => {
 
     await user.save();
 
+    // Calculate profile completion after update
+    const profileCompletion = calculateProfileCompletion(user);
+
     res.status(200).json({
       success: true,
       user: {
@@ -192,6 +264,7 @@ exports.updateProfile = async (req, res) => {
         avatar: user.avatar,
         role: user.role,
         profile: user.profile || {},
+        profileCompletion,
       },
       message: 'Profile updated successfully',
     });
@@ -435,6 +508,72 @@ exports.updateSettings = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error updating settings',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Get profile completion status
+// @route   GET /api/profile/completion
+// @access  Private
+exports.getProfileCompletion = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    const profileCompletion = calculateProfileCompletion(user);
+
+    res.status(200).json({
+      success: true,
+      profileCompletion,
+      message: profileCompletion.isComplete
+        ? 'Your profile is complete!'
+        : `Complete ${profileCompletion.totalFields - profileCompletion.filledFields} more field(s) to reach 100%`,
+    });
+  } catch (error) {
+    console.error('Get profile completion error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching profile completion',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Get coin achievement status
+// @route   GET /api/profile/coin-achievement
+// @access  Private
+exports.getCoinAchievement = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    const coinAchievement = calculateCoinAchievement(user);
+
+    res.status(200).json({
+      success: true,
+      coinAchievement,
+      message: coinAchievement.isAchieved
+        ? 'Congratulations! You have reached the 5000 coin target! 🎉'
+        : `Earn ${coinAchievement.remainingCoins} more coins to reach the 5000 coin target`,
+    });
+  } catch (error) {
+    console.error('Get coin achievement error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching coin achievement',
       error: error.message,
     });
   }

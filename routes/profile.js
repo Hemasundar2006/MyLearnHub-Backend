@@ -9,6 +9,8 @@ const {
   getSettings,
   updateSettings,
   uploadAvatar,
+  getProfileCompletion,
+  getCoinAchievement,
 } = require('../controllers/userProfileController');
 const { protect } = require('../middleware/auth');
 
@@ -23,6 +25,12 @@ router.route('/')
 
 router.put('/change-password', changePassword);
 router.post('/avatar', uploadAvatar);
+
+// Profile completion
+router.get('/completion', getProfileCompletion);
+
+// Coin achievement
+router.get('/coin-achievement', getCoinAchievement);
 
 // Enrollments
 router.get('/enrollments', getEnrollments);
