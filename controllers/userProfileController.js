@@ -2,6 +2,8 @@ const User = require('../models/User');
 const Enrollment = require('../models/Enrollment');
 const Settings = require('../models/Settings');
 const bcrypt = require('bcryptjs');
+const rewardConfig = require('../config/rewardConfig');
+const { enforceHistoryLimit } = require('../utils/referralUtils');
 
 // Helper function to calculate profile completion percentage
 const calculateProfileCompletion = (user) => {
@@ -104,7 +106,12 @@ exports.getProfile = async (req, res) => {
         createdAt: user.createdAt,
         coins: user.coins || 0,
         profile: user.profile || {},
-        profileCompletion,
+        profileCompletion: {
+          ...profileCompletion,
+          rewardClaimed: user.profileCompletionRewardClaimed || false,
+          rewardClaimedAt: user.profileCompletionRewardClaimedAt || null,
+          canClaimReward: profileCompletion.isComplete && !user.profileCompletionRewardClaimed,
+        },
         coinAchievement,
         stats: {
           enrolledCourses: enrollmentCount,
@@ -531,9 +538,16 @@ exports.getProfileCompletion = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      profileCompletion,
+      profileCompletion: {
+        ...profileCompletion,
+        rewardClaimed: user.profileCompletionRewardClaimed || false,
+        rewardClaimedAt: user.profileCompletionRewardClaimedAt || null,
+        canClaimReward: profileCompletion.isComplete && !user.profileCompletionRewardClaimed,
+      },
       message: profileCompletion.isComplete
-        ? 'Your profile is complete!'
+        ? user.profileCompletionRewardClaimed
+          ? 'Your profile is complete!'
+          : 'Your profile is complete! Claim your 100 coins reward!'
         : `Complete ${profileCompletion.totalFields - profileCompletion.filledFields} more field(s) to reach 100%`,
     });
   } catch (error) {
@@ -574,6 +588,90 @@ exports.getCoinAchievement = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error fetching coin achievement',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Claim profile completion reward (100 coins)
+// @route   POST /api/profile/claim-completion-reward
+// @access  Private
+exports.claimProfileCompletionReward = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Check if reward has already been claimed
+    if (user.profileCompletionRewardClaimed) {
+      return res.status(400).json({
+        success: false,
+        message: 'Profile completion reward has already been claimed',
+      });
+    }
+
+    // Check if profile is 100% complete
+    const profileCompletion = calculateProfileCompletion(user);
+    
+    if (!profileCompletion.isComplete) {
+      return res.status(400).json({
+        success: false,
+        message: 'Profile must be 100% complete to claim the reward',
+        profileCompletion: {
+          percentage: profileCompletion.percentage,
+          missingFields: profileCompletion.missingFields,
+        },
+      });
+    }
+
+    // Reward amount
+    const REWARD_AMOUNT = 100;
+    const { transactionHistoryLimit } = rewardConfig.coins;
+
+    // Add coins to user
+    user.coins = (user.coins || 0) + REWARD_AMOUNT;
+
+    // Add transaction record
+    user.coinTransactions.push({
+      amount: REWARD_AMOUNT,
+      type: 'bonus',
+      reason: 'Profile completion reward',
+      metadata: {
+        rewardType: 'profileCompletion',
+        profileCompletionPercentage: 100,
+      },
+      timestamp: new Date(),
+    });
+
+    // Enforce transaction history limit
+    enforceHistoryLimit(user.coinTransactions, transactionHistoryLimit);
+
+    // Mark reward as claimed
+    user.profileCompletionRewardClaimed = true;
+    user.profileCompletionRewardClaimedAt = new Date();
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Congratulations! You have claimed 100 coins for completing your profile! 🎉',
+      reward: {
+        amount: REWARD_AMOUNT,
+        newBalance: user.coins,
+        claimedAt: user.profileCompletionRewardClaimedAt,
+      },
+      coinAchievement: calculateCoinAchievement(user),
+    });
+  } catch (error) {
+    console.error('Claim profile completion reward error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error claiming profile completion reward',
       error: error.message,
     });
   }

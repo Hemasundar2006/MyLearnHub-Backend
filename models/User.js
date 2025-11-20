@@ -193,6 +193,13 @@ const userSchema = new mongoose.Schema(
       type: profileSchema,
       default: {},
     },
+    profileCompletionRewardClaimed: {
+      type: Boolean,
+      default: false,
+    },
+    profileCompletionRewardClaimedAt: {
+      type: Date,
+    },
   },
   {
     timestamps: true,

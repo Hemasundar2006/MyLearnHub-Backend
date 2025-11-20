@@ -11,6 +11,7 @@ const {
   uploadAvatar,
   getProfileCompletion,
   getCoinAchievement,
+  claimProfileCompletionReward,
 } = require('../controllers/userProfileController');
 const { protect } = require('../middleware/auth');
 
@@ -28,6 +29,7 @@ router.post('/avatar', uploadAvatar);
 
 // Profile completion
 router.get('/completion', getProfileCompletion);
+router.post('/claim-completion-reward', claimProfileCompletionReward);
 
 // Coin achievement
 router.get('/coin-achievement', getCoinAchievement);
