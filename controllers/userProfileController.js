@@ -36,6 +36,7 @@ exports.getProfile = async (req, res) => {
         role: user.role,
         isActive: user.isActive,
         createdAt: user.createdAt,
+        profile: user.profile || {},
         stats: {
           enrolledCourses: enrollmentCount,
           completedCourses: completedCount,
@@ -58,6 +59,34 @@ exports.getProfile = async (req, res) => {
 exports.updateProfile = async (req, res) => {
   try {
     const { name, avatar, email } = req.body;
+    const profilePayload =
+      typeof req.body.profile === 'object' && req.body.profile !== null
+        ? req.body.profile
+        : {};
+    const pickProfileValue = (key) =>
+      typeof req.body[key] !== 'undefined'
+        ? req.body[key]
+        : profilePayload[key];
+    const normalizeString = (value) => {
+      if (typeof value === 'undefined' || value === null) return undefined;
+      if (typeof value !== 'string') return value;
+      const trimmed = value.trim();
+      return trimmed.length ? trimmed : undefined;
+    };
+    const normalizeArrayField = (value) => {
+      if (typeof value === 'undefined' || value === null) return undefined;
+      const rawArray = Array.isArray(value)
+        ? value
+        : String(value)
+            .split(',')
+            .map((item) => item.trim());
+      const cleaned = rawArray
+        .map((item) => item.trim())
+        .filter((item) => !!item)
+        .slice(0, 25);
+      return [...new Set(cleaned)];
+    };
+    const MOBILE_REGEX = /^\+?[0-9]{10,15}$/;
 
     const user = await User.findById(req.user.id);
 
@@ -84,6 +113,74 @@ exports.updateProfile = async (req, res) => {
     if (name) user.name = name;
     if (avatar) user.avatar = avatar;
 
+    const profileUpdates = {};
+    const mobileNumber = pickProfileValue('mobileNumber');
+    if (typeof mobileNumber !== 'undefined') {
+      if (mobileNumber && !MOBILE_REGEX.test(mobileNumber)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Mobile number must contain 10-15 digits',
+        });
+      }
+      profileUpdates.mobileNumber = mobileNumber || undefined;
+    }
+
+    const graduationYear = pickProfileValue('graduationYear');
+    if (typeof graduationYear !== 'undefined') {
+      if (graduationYear === '' || graduationYear === null) {
+        profileUpdates.graduationYear = undefined;
+      } else {
+        const parsedYear = parseInt(graduationYear, 10);
+        if (Number.isNaN(parsedYear) || parsedYear < 1950 || parsedYear > 2100) {
+          return res.status(400).json({
+            success: false,
+            message: 'Graduation year must be between 1950 and 2100',
+          });
+        }
+        profileUpdates.graduationYear = parsedYear;
+      }
+    }
+
+    const profileStringFields = [
+      'college',
+      'currentYear',
+      'bio',
+      'location',
+      'website',
+      'github',
+      'linkedin',
+      'experienceLevel',
+    ];
+
+    profileStringFields.forEach((field) => {
+      const value = pickProfileValue(field);
+      if (typeof value !== 'undefined') {
+        profileUpdates[field] = normalizeString(value);
+      }
+    });
+
+    const skills = normalizeArrayField(pickProfileValue('skills'));
+    if (typeof skills !== 'undefined') {
+      profileUpdates.skills = skills;
+    }
+
+    const interests = normalizeArrayField(pickProfileValue('interests'));
+    if (typeof interests !== 'undefined') {
+      profileUpdates.interests = interests;
+    }
+
+    if (Object.keys(profileUpdates).length) {
+      const nextProfile = { ...(user.profile || {}) };
+      Object.entries(profileUpdates).forEach(([key, value]) => {
+        if (typeof value === 'undefined') {
+          delete nextProfile[key];
+        } else {
+          nextProfile[key] = value;
+        }
+      });
+      user.profile = nextProfile;
+    }
+
     await user.save();
 
     res.status(200).json({
@@ -94,6 +191,7 @@ exports.updateProfile = async (req, res) => {
         email: user.email,
         avatar: user.avatar,
         role: user.role,
+        profile: user.profile || {},
       },
       message: 'Profile updated successfully',
     });

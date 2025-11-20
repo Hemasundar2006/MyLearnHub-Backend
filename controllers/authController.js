@@ -326,3 +326,38 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
+// @desc    Logout user
+// @route   POST /api/auth/logout
+// @access  Private
+exports.logout = async (req, res) => {
+  try {
+    const cookieOptions = {
+      httpOnly: true,
+      expires: new Date(0),
+      sameSite: 'lax',
+    };
+
+    if (process.env.NODE_ENV === 'production') {
+      cookieOptions.secure = true;
+    }
+
+    if (typeof res.clearCookie === 'function') {
+      res.clearCookie('token', cookieOptions);
+    } else {
+      res.cookie('token', '', cookieOptions);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Logged out successfully',
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during logout',
+      error: error.message,
+    });
+  }
+};
+

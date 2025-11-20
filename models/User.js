@@ -2,6 +2,81 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
+const profileSchema = new mongoose.Schema(
+  {
+    mobileNumber: {
+      type: String,
+      trim: true,
+      match: [
+        /^\+?[0-9]{10,15}$/,
+        'Please provide a valid mobile number with 10-15 digits',
+      ],
+    },
+    college: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+    },
+    currentYear: {
+      type: String,
+      trim: true,
+      maxlength: 40,
+    },
+    graduationYear: {
+      type: Number,
+      min: 1950,
+      max: 2100,
+    },
+    skills: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (skills = []) => skills.length <= 25,
+        message: 'You can add up to 25 skills',
+      },
+    },
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+    },
+    location: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+    },
+    website: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+    },
+    github: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+    },
+    linkedin: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+    },
+    interests: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (interests = []) => interests.length <= 25,
+        message: 'You can add up to 25 interests',
+      },
+    },
+    experienceLevel: {
+      type: String,
+      trim: true,
+      maxlength: 60,
+    },
+  },
+  { _id: false }
+);
+
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -114,6 +189,10 @@ const userSchema = new mongoose.Schema(
         completedAt: Date,
       },
     ],
+    profile: {
+      type: profileSchema,
+      default: {},
+    },
   },
   {
     timestamps: true,
