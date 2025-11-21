@@ -1,5 +1,7 @@
+const mongoose = require('mongoose');
 const Quiz = require('../models/Quiz');
 const Result = require('../models/Result');
+const User = require('../models/User');
 const { checkAndAwardBadges } = require('../utils/badgeLogic');
 
 // @desc    Get all quizzes
@@ -94,18 +96,39 @@ exports.getQuizById = async (req, res) => {
 };
 
 // @desc    Submit quiz and calculate score
-// @route   POST /api/quizzes/submit
+// @route   POST /api/quizzes/submit or POST /api/quizzes/:id/submit
 // @access  Private
 exports.submitQuiz = async (req, res) => {
   try {
-    const { quizId, userAnswers, durationSeconds } = req.body;
+    // Get quizId from URL params or request body
+    const quizId = req.params.id || req.body.quizId;
+    const { userAnswers, answers, durationSeconds } = req.body;
     const userId = req.user.id; // Get from authenticated user
 
     // Validation
-    if (!quizId || !userAnswers || !Array.isArray(userAnswers)) {
+    if (!quizId) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide quizId and userAnswers array',
+        message: 'Please provide quizId in URL or request body',
+      });
+    }
+
+    // Handle different answer formats
+    let processedAnswers = [];
+    
+    if (userAnswers && Array.isArray(userAnswers)) {
+      // Format: [{ questionId: "...", selectedAnswer: "..." }]
+      processedAnswers = userAnswers;
+    } else if (answers && typeof answers === 'object') {
+      // Format: { "questionId": "answer", ... }
+      processedAnswers = Object.entries(answers).map(([questionId, selectedAnswer]) => ({
+        questionId,
+        selectedAnswer: String(selectedAnswer),
+      }));
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide userAnswers array or answers object',
       });
     }
 
@@ -132,12 +155,17 @@ exports.submitQuiz = async (req, res) => {
     const detailedAnswers = [];
 
     quiz.questions.forEach((question, index) => {
-      const userAnswer = userAnswers.find(
+      const userAnswer = processedAnswers.find(
         (ans) => ans.questionId === question._id.toString() || ans.questionIndex === index
       );
 
       const selectedAnswer = userAnswer ? userAnswer.selectedAnswer : '';
-      const isCorrect = selectedAnswer === question.correctAnswer;
+      // Trim and normalize comparison for better matching
+      const normalizedSelected = selectedAnswer.trim();
+      const normalizedCorrect = question.correctAnswer.trim();
+      const isCorrect = normalizedSelected === normalizedCorrect;
+      
+      // Award points only if answer is correct
       const points = isCorrect ? question.points : 0;
 
       if (isCorrect) {
@@ -147,9 +175,10 @@ exports.submitQuiz = async (req, res) => {
 
       detailedAnswers.push({
         questionIndex: index,
-        selectedAnswer,
+        selectedAnswer: normalizedSelected,
         isCorrect,
         points,
+        questionPoints: question.points, // Include question points for reference
       });
     });
 
@@ -177,22 +206,142 @@ exports.submitQuiz = async (req, res) => {
       result: {
         id: result._id,
         score,
+        totalPoints,
         percentage,
         correctAnswers,
         totalQuestions,
+        pointsEarned: score, // Explicit points earned
         durationSeconds: result.durationSeconds,
         createdAt: result.createdAt,
       },
+      detailedAnswers, // Include detailed answer breakdown
       newlyAwardedBadges,
       message: newlyAwardedBadges.length > 0
-        ? `Congratulations! You earned ${newlyAwardedBadges.length} badge(s)!`
-        : 'Quiz submitted successfully',
+        ? `Congratulations! You earned ${newlyAwardedBadges.length} badge(s) and ${score} points!`
+        : `Quiz submitted successfully! You earned ${score} points.`,
     });
   } catch (error) {
     console.error('Submit quiz error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error submitting quiz',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Get quiz leaderboard (top performers)
+// @route   GET /api/quizzes/leaderboard
+// @access  Public
+exports.getQuizLeaderboard = async (req, res) => {
+  try {
+    const { quizId, limit = 100, sortBy = 'percentage' } = req.query;
+    const limitNum = parseInt(limit);
+
+    let matchStage = {};
+    if (quizId) {
+      matchStage.quizId = new mongoose.Types.ObjectId(quizId);
+    }
+
+    // Validate sortBy
+    const validSortFields = ['percentage', 'score', 'correctAnswers', 'createdAt'];
+    const sortField = validSortFields.includes(sortBy) ? sortBy : 'percentage';
+
+    // Aggregation pipeline for quiz leaderboard
+    const leaderboard = await Result.aggregate([
+      // Match results (optionally filter by quizId)
+      {
+        $match: matchStage,
+      },
+      // Lookup user details
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user',
+        },
+      },
+      {
+        $unwind: '$user',
+      },
+      // Filter only active users
+      {
+        $match: {
+          'user.isActive': true,
+          'user.role': 'user',
+        },
+      },
+      // Lookup quiz details if quizId not specified
+      ...(quizId ? [] : [{
+        $lookup: {
+          from: 'quizzes',
+          localField: 'quizId',
+          foreignField: '_id',
+          as: 'quiz',
+        },
+      }, {
+        $unwind: '$quiz',
+      }]),
+      // Group by user to get best scores
+      {
+        $group: {
+          _id: '$userId',
+          user: { $first: '$user' },
+          bestScore: { $max: '$score' },
+          bestPercentage: { $max: '$percentage' },
+          totalQuizzes: { $sum: 1 },
+          totalCorrectAnswers: { $sum: '$correctAnswers' },
+          averagePercentage: { $avg: '$percentage' },
+          quizDetails: quizId ? { $first: '$quizId' } : { $first: '$quiz' },
+          latestAttempt: { $max: '$createdAt' },
+        },
+      },
+      // Project final structure
+      {
+        $project: {
+          userId: '$_id',
+          username: { $ifNull: ['$user.name', '$user.email'] },
+          email: '$user.email',
+          avatar: '$user.avatar',
+          bestScore: 1,
+          bestPercentage: { $round: ['$bestPercentage', 2] },
+          averagePercentage: { $round: ['$averagePercentage', 2] },
+          totalQuizzes: 1,
+          totalCorrectAnswers: 1,
+          quizDetails: 1,
+          latestAttempt: 1,
+        },
+      },
+      // Sort by specified field
+      {
+        $sort: sortField === 'createdAt' 
+          ? { latestAttempt: -1 }
+          : { [sortField]: -1, latestAttempt: -1 },
+      },
+      // Limit results
+      {
+        $limit: limitNum > 0 && limitNum <= 1000 ? limitNum : 100,
+      },
+    ]);
+
+    // Add rank to each user
+    const leaderboardWithRank = leaderboard.map((user, index) => ({
+      rank: index + 1,
+      ...user,
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: leaderboardWithRank.length,
+      sortBy: sortField,
+      leaderboard: leaderboardWithRank,
+    });
+  } catch (error) {
+    console.error('Get quiz leaderboard error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching quiz leaderboard',
       error: error.message,
     });
   }

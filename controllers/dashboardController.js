@@ -2,6 +2,8 @@ const User = require('../models/User');
 const Course = require('../models/Course');
 const Enrollment = require('../models/Enrollment');
 const Doubt = require('../models/Doubt');
+const Result = require('../models/Result');
+const Quiz = require('../models/Quiz');
 
 // @desc    Get dashboard statistics
 // @route   GET /api/admin/dashboard/stats
@@ -23,6 +25,8 @@ exports.getDashboardStats = async (req, res) => {
       profileCompletionRewardClaimed: true,
       role: 'user',
     });
+    const totalQuizSubmissions = await Result.countDocuments();
+    const totalQuizzes = await Quiz.countDocuments();
 
     // Users in last 30 days
     const usersLast30Days = await User.countDocuments({
@@ -90,6 +94,11 @@ exports.getDashboardStats = async (req, res) => {
       role: 'user',
     });
 
+    // Quiz submissions in last 30 days
+    const quizSubmissionsLast30Days = await Result.countDocuments({
+      createdAt: { $gte: thirtyDaysAgo },
+    });
+
     res.status(200).json({
       success: true,
       stats: {
@@ -100,11 +109,14 @@ exports.getDashboardStats = async (req, res) => {
         totalDoubts,
         pendingDoubts,
         totalProfileCompletions,
+        totalQuizSubmissions,
+        totalQuizzes,
         usersThisMonth: usersLast30Days,
         coursesThisMonth: coursesLast30Days,
         enrollmentsThisMonth: enrollmentsLast30Days,
         revenueThisMonth,
         profileCompletionsThisMonth: profileCompletionsLast30Days,
+        quizSubmissionsThisMonth: quizSubmissionsLast30Days,
         growthRates: {
           users: parseFloat(userGrowthRate),
           enrollments: parseFloat(enrollmentGrowthRate),
@@ -165,6 +177,13 @@ exports.getRecentActivity = async (req, res) => {
       .limit(limit)
       .select('name email avatar profile profileCompletionRewardClaimedAt createdAt');
 
+    // Get recent quiz submissions
+    const recentQuizResults = await Result.find()
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate('userId', 'name email avatar')
+      .populate('quizId', 'title topic difficulty');
+
     // Combine and format activity
     const activity = [
       ...recentEnrollments.map(e => ({
@@ -209,6 +228,31 @@ exports.getRecentActivity = async (req, res) => {
         timestamp: u.profileCompletionRewardClaimedAt,
         icon: 'check-circle',
         rewardAmount: 100,
+      })),
+      ...recentQuizResults.map(r => ({
+        type: 'quiz_submission',
+        message: `${r.userId?.name || 'User'} scored ${r.percentage}% on "${r.quizId?.title || 'Quiz'}"`,
+        user: {
+          id: r.userId?._id,
+          name: r.userId?.name,
+          email: r.userId?.email,
+          avatar: r.userId?.avatar,
+        },
+        quiz: {
+          id: r.quizId?._id,
+          title: r.quizId?.title,
+          topic: r.quizId?.topic,
+          difficulty: r.quizId?.difficulty,
+        },
+        result: {
+          id: r._id,
+          score: r.score,
+          percentage: r.percentage,
+          correctAnswers: r.correctAnswers,
+          totalQuestions: r.totalQuestions,
+        },
+        timestamp: r.createdAt,
+        icon: 'trophy',
       })),
     ];
 

@@ -1,4 +1,6 @@
 const Quiz = require('../models/Quiz');
+const Result = require('../models/Result');
+const User = require('../models/User');
 
 // @desc    Get all quizzes (admin view - includes inactive)
 // @route   GET /api/admin/quizzes
@@ -489,6 +491,193 @@ exports.getQuizStats = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error fetching quiz statistics',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Get all quiz results (scores)
+// @route   GET /api/admin/quizzes/results
+// @access  Private/Admin
+exports.getAllQuizResults = async (req, res) => {
+  try {
+    const { quizId, userId, page = 1, limit = 20, sortBy = 'createdAt' } = req.query;
+
+    // Build query
+    let query = {};
+
+    if (quizId) {
+      query.quizId = quizId;
+    }
+
+    if (userId) {
+      query.userId = userId;
+    }
+
+    // Pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Sort options
+    const sortOptions = {};
+    if (sortBy === 'score') {
+      sortOptions.score = -1;
+    } else if (sortBy === 'percentage') {
+      sortOptions.percentage = -1;
+    } else {
+      sortOptions.createdAt = -1;
+    }
+
+    const results = await Result.find(query)
+      .populate('userId', 'name email avatar profile')
+      .populate('quizId', 'title topic difficulty')
+      .sort(sortOptions)
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const totalResults = await Result.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      count: results.length,
+      total: totalResults,
+      page: parseInt(page),
+      pages: Math.ceil(totalResults / parseInt(limit)),
+      results,
+    });
+  } catch (error) {
+    console.error('Get all quiz results error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching quiz results',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Get user's quiz details and scores
+// @route   GET /api/admin/quizzes/users/:userId
+// @access  Private/Admin
+exports.getUserQuizDetails = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+
+    // Get user details
+    const user = await User.findById(userId).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Get user's quiz results
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const results = await Result.find({ userId })
+      .populate('quizId', 'title topic difficulty questions')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const totalResults = await Result.countDocuments({ userId });
+
+    // Calculate user quiz statistics
+    const allUserResults = await Result.find({ userId });
+    const totalQuizzes = allUserResults.length;
+    const averageScore = totalQuizzes > 0
+      ? allUserResults.reduce((sum, r) => sum + r.score, 0) / totalQuizzes
+      : 0;
+    const averagePercentage = totalQuizzes > 0
+      ? allUserResults.reduce((sum, r) => sum + r.percentage, 0) / totalQuizzes
+      : 0;
+    const bestScore = totalQuizzes > 0
+      ? Math.max(...allUserResults.map(r => r.score))
+      : 0;
+    const bestPercentage = totalQuizzes > 0
+      ? Math.max(...allUserResults.map(r => r.percentage))
+      : 0;
+    const totalCorrectAnswers = allUserResults.reduce((sum, r) => sum + r.correctAnswers, 0);
+
+    res.status(200).json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        profile: user.profile || {},
+        badges: user.badges || [],
+        coins: user.coins || 0,
+      },
+      quizStats: {
+        totalQuizzes,
+        averageScore: Math.round(averageScore * 100) / 100,
+        averagePercentage: Math.round(averagePercentage * 100) / 100,
+        bestScore,
+        bestPercentage,
+        totalCorrectAnswers,
+      },
+      results: {
+        count: results.length,
+        total: totalResults,
+        page: parseInt(page),
+        pages: Math.ceil(totalResults / parseInt(limit)),
+        data: results,
+      },
+    });
+  } catch (error) {
+    console.error('Get user quiz details error:', error);
+    
+    if (error.kind === 'ObjectId') {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching user quiz details',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Get quiz result by ID with full details
+// @route   GET /api/admin/quizzes/results/:id
+// @access  Private/Admin
+exports.getQuizResultById = async (req, res) => {
+  try {
+    const result = await Result.findById(req.params.id)
+      .populate('userId', 'name email avatar profile badges')
+      .populate('quizId', 'title topic difficulty questions');
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: 'Quiz result not found',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      result,
+    });
+  } catch (error) {
+    console.error('Get quiz result by ID error:', error);
+    
+    if (error.kind === 'ObjectId') {
+      return res.status(404).json({
+        success: false,
+        message: 'Quiz result not found',
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching quiz result',
       error: error.message,
     });
   }
