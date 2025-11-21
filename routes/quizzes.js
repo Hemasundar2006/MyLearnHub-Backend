@@ -17,6 +17,7 @@ router.get('/leaderboard', getQuizLeaderboard); // Quiz leaderboard
 router.post('/submit', protect, submitQuiz);
 router.post('/:id/submit', protect, submitQuiz); // Support quiz ID in URL
 router.get('/results/me', protect, getUserResults);
+router.get('/my-results', protect, getUserResults); // Alias for /results/me
 
 // Parameterized routes last
 router.get('/:id', getQuizById);
