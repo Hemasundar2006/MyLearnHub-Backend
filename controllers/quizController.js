@@ -3,6 +3,44 @@ const Quiz = require('../models/Quiz');
 const Result = require('../models/Result');
 const User = require('../models/User');
 const { checkAndAwardBadges } = require('../utils/badgeLogic');
+const rewardConfig = require('../config/rewardConfig');
+const { enforceHistoryLimit } = require('../utils/referralUtils');
+
+/**
+ * Calculate coins to award for quiz completion
+ * @param {Number} percentage - Quiz completion percentage (0-100)
+ * @param {String} difficulty - Quiz difficulty ('Easy', 'Medium', 'Hard')
+ * @returns {Number} - Coins to award
+ */
+const calculateQuizCoins = (percentage, difficulty) => {
+  // Base reward for completing quiz
+  const BASE_REWARD = 10;
+  
+  // Percentage-based bonus
+  let percentageBonus = 0;
+  if (percentage >= 91) {
+    percentageBonus = 20; // Excellent (91-100%)
+  } else if (percentage >= 71) {
+    percentageBonus = 10; // Good (71-90%)
+  } else if (percentage >= 51) {
+    percentageBonus = 5;  // Average (51-70%)
+  }
+  // 0-50% gets no bonus
+  
+  // Difficulty multiplier
+  const difficultyMultiplier = {
+    'Easy': 1.0,
+    'Medium': 1.5,
+    'Hard': 2.0,
+  };
+  
+  const multiplier = difficultyMultiplier[difficulty] || 1.0;
+  
+  // Calculate total coins
+  const totalCoins = Math.round((BASE_REWARD + percentageBonus) * multiplier);
+  
+  return totalCoins;
+};
 
 // @desc    Get all quizzes
 // @route   GET /api/quizzes
@@ -275,6 +313,40 @@ exports.submitQuiz = async (req, res) => {
       userAnswers: detailedAnswers,
     });
 
+    // Calculate and award coins for quiz completion
+    const coinsEarned = calculateQuizCoins(percentage, quiz.difficulty);
+    const user = await User.findById(userId);
+    
+    if (user) {
+      // Add coins to user
+      user.coins = (user.coins || 0) + coinsEarned;
+      
+      // Add transaction record
+      user.coinTransactions.push({
+        amount: coinsEarned,
+        type: 'earned',
+        reason: `Quiz completion: ${quiz.title} (${percentage}%)`,
+        metadata: {
+          quizId: quiz._id.toString(),
+          quizTitle: quiz.title,
+          quizTopic: quiz.topic,
+          quizDifficulty: quiz.difficulty,
+          score: score,
+          percentage: percentage,
+          correctAnswers: correctAnswers,
+          totalQuestions: totalQuestions,
+          resultId: result._id.toString(),
+        },
+        timestamp: new Date(),
+      });
+      
+      // Enforce transaction history limit
+      const { transactionHistoryLimit } = rewardConfig.coins;
+      enforceHistoryLimit(user.coinTransactions, transactionHistoryLimit);
+      
+      await user.save();
+    }
+
     // Check and award badges
     const newlyAwardedBadges = await checkAndAwardBadges(userId, result, quizId);
 
@@ -293,12 +365,13 @@ exports.submitQuiz = async (req, res) => {
       },
       detailedAnswers, // Include detailed answer breakdown
       newlyAwardedBadges,
+      coinsEarned, // Coins earned from quiz completion
       isAutoSubmitted, // Indicate if this was an auto-submission
       message: isAutoSubmitted
-        ? `Time's up! Your quiz has been automatically submitted. You scored ${score} points (${percentage}%).`
+        ? `Time's up! Your quiz has been automatically submitted. You scored ${score} points (${percentage}%) and earned ${coinsEarned} coins!`
         : newlyAwardedBadges.length > 0
-        ? `Congratulations! You earned ${newlyAwardedBadges.length} badge(s) and ${score} points!`
-        : `Quiz submitted successfully! You earned ${score} points.`,
+        ? `Congratulations! You earned ${newlyAwardedBadges.length} badge(s), ${score} points, and ${coinsEarned} coins!`
+        : `Quiz submitted successfully! You earned ${score} points and ${coinsEarned} coins!`,
     });
   } catch (error) {
     console.error('Submit quiz error:', error);
