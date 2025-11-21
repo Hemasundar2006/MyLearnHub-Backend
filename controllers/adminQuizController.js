@@ -35,13 +35,62 @@ exports.getAllQuizzes = async (req, res) => {
 
     const totalQuizzes = await Quiz.countDocuments(query);
 
+    // Get participation counts for each quiz
+    const quizIds = quizzes.map(q => q._id);
+    const participationStats = await Result.aggregate([
+      {
+        $match: {
+          quizId: { $in: quizIds },
+        },
+      },
+      {
+        $group: {
+          _id: '$quizId',
+          totalAttempts: { $sum: 1 },
+          uniqueUsers: { $addToSet: '$userId' },
+        },
+      },
+      {
+        $project: {
+          quizId: '$_id',
+          totalAttempts: 1,
+          usersCount: { $size: '$uniqueUsers' },
+        },
+      },
+    ]);
+
+    // Create a map for quick lookup
+    const participationMap = {};
+    participationStats.forEach(stat => {
+      participationMap[stat.quizId.toString()] = {
+        totalAttempts: stat.totalAttempts,
+        usersCount: stat.usersCount,
+      };
+    });
+
+    // Add participation data to each quiz
+    const quizzesWithStats = quizzes.map(quiz => {
+      const quizObj = quiz.toObject();
+      const stats = participationMap[quiz._id.toString()] || {
+        totalAttempts: 0,
+        usersCount: 0,
+      };
+      return {
+        ...quizObj,
+        participation: {
+          totalAttempts: stats.totalAttempts,
+          usersCount: stats.usersCount, // How many users took this quiz
+        },
+      };
+    });
+
     res.status(200).json({
       success: true,
-      count: quizzes.length,
+      count: quizzesWithStats.length,
       total: totalQuizzes,
       page: parseInt(page),
       pages: Math.ceil(totalQuizzes / parseInt(limit)),
-      quizzes,
+      quizzes: quizzesWithStats,
     });
   } catch (error) {
     console.error('Get all quizzes (admin) error:', error);
@@ -68,9 +117,50 @@ exports.getQuizById = async (req, res) => {
       });
     }
 
+    // Get participation statistics for this quiz
+    const participationStats = await Result.aggregate([
+      {
+        $match: {
+          quizId: quiz._id,
+        },
+      },
+      {
+        $group: {
+          _id: '$quizId',
+          totalAttempts: { $sum: 1 },
+          uniqueUsers: { $addToSet: '$userId' },
+          averageScore: { $avg: '$score' },
+          averagePercentage: { $avg: '$percentage' },
+        },
+      },
+      {
+        $project: {
+          totalAttempts: 1,
+          usersCount: { $size: '$uniqueUsers' },
+          averageScore: { $round: ['$averageScore', 2] },
+          averagePercentage: { $round: ['$averagePercentage', 2] },
+        },
+      },
+    ]);
+
+    const participation = participationStats[0] || {
+      totalAttempts: 0,
+      usersCount: 0,
+      averageScore: 0,
+      averagePercentage: 0,
+    };
+
     res.status(200).json({
       success: true,
-      quiz,
+      quiz: {
+        ...quiz.toObject(),
+        participation: {
+          totalAttempts: participation.totalAttempts,
+          usersCount: participation.usersCount, // How many users took this quiz
+          averageScore: participation.averageScore,
+          averagePercentage: participation.averagePercentage,
+        },
+      },
     });
   } catch (error) {
     console.error('Get quiz by ID (admin) error:', error);
@@ -458,6 +548,13 @@ exports.getQuizStats = async (req, res) => {
     const activeQuizzes = await Quiz.countDocuments({ isActive: true });
     const inactiveQuizzes = await Quiz.countDocuments({ isActive: false });
 
+    // Total quiz submissions (results)
+    const totalSubmissions = await Result.countDocuments();
+    
+    // Total unique users who took quizzes
+    const uniqueUsers = await Result.distinct('userId');
+    const totalUsersWhoTookQuizzes = uniqueUsers.length;
+
     // Quizzes by difficulty
     const byDifficulty = await Quiz.aggregate([
       {
@@ -499,18 +596,63 @@ exports.getQuizStats = async (req, res) => {
       },
     ]);
 
+    // Quiz participation stats (how many users took each quiz)
+    const quizParticipation = await Result.aggregate([
+      {
+        $group: {
+          _id: '$quizId',
+          totalAttempts: { $sum: 1 },
+          uniqueUsers: { $addToSet: '$userId' },
+        },
+      },
+      {
+        $project: {
+          quizId: '$_id',
+          totalAttempts: 1,
+          uniqueUsersCount: { $size: '$uniqueUsers' },
+        },
+      },
+      {
+        $lookup: {
+          from: 'quizzes',
+          localField: 'quizId',
+          foreignField: '_id',
+          as: 'quiz',
+        },
+      },
+      {
+        $unwind: '$quiz',
+      },
+      {
+        $project: {
+          quizId: 1,
+          quizTitle: '$quiz.title',
+          quizTopic: '$quiz.topic',
+          quizDifficulty: '$quiz.difficulty',
+          totalAttempts: 1,
+          uniqueUsersCount: 1,
+        },
+      },
+      {
+        $sort: { uniqueUsersCount: -1 },
+      },
+    ]);
+
     res.status(200).json({
       success: true,
       stats: {
         totalQuizzes,
         activeQuizzes,
         inactiveQuizzes,
+        totalSubmissions,
+        totalUsersWhoTookQuizzes,
         byDifficulty: byDifficulty.reduce((acc, item) => {
           acc[item._id] = item.count;
           return acc;
         }, {}),
         topTopics: byTopic,
         averageQuestionsPerQuiz: avgQuestions[0]?.avgQuestions || 0,
+        quizParticipation, // Array of quizzes with participation counts
       },
     });
   } catch (error) {

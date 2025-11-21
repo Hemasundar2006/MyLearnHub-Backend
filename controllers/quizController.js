@@ -147,23 +147,32 @@ exports.submitQuiz = async (req, res) => {
       });
     }
 
-    // Handle different answer formats
+    // Handle different answer formats (allow empty answers for auto-submission)
     let processedAnswers = [];
+    let isAutoSubmitted = false;
     
-    if (userAnswers && Array.isArray(userAnswers)) {
+    if (userAnswers !== undefined && Array.isArray(userAnswers)) {
       // Format: [{ questionId: "...", selectedAnswer: "..." }]
       processedAnswers = userAnswers;
-    } else if (answers && typeof answers === 'object') {
+      // If empty array, it means user didn't select any option (auto-submission)
+      if (userAnswers.length === 0) {
+        isAutoSubmitted = true;
+      }
+    } else if (answers !== undefined && typeof answers === 'object') {
       // Format: { "questionId": "answer", ... }
-      processedAnswers = Object.entries(answers).map(([questionId, selectedAnswer]) => ({
+      const answerEntries = Object.entries(answers);
+      processedAnswers = answerEntries.map(([questionId, selectedAnswer]) => ({
         questionId,
         selectedAnswer: String(selectedAnswer),
       }));
+      // If empty object, it means user didn't select any option (auto-submission)
+      if (answerEntries.length === 0) {
+        isAutoSubmitted = true;
+      }
     } else {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide userAnswers array or answers object',
-      });
+      // No answers provided - treat as auto-submission with no selections
+      processedAnswers = [];
+      isAutoSubmitted = true;
     }
 
     // Fetch the quiz with correct answers
@@ -192,8 +201,9 @@ exports.submitQuiz = async (req, res) => {
     if (existingResult) {
       return res.status(409).json({
         success: false,
-        message: 'You have already completed this quiz. You can view your results instead.',
+        message: 'Test already submitted. You have already completed this quiz. You can view your results instead.',
         alreadyCompleted: true,
+        testAlreadySubmitted: true, // Additional flag for frontend
         existingResult: {
           id: existingResult._id,
           score: existingResult.score,
@@ -283,7 +293,10 @@ exports.submitQuiz = async (req, res) => {
       },
       detailedAnswers, // Include detailed answer breakdown
       newlyAwardedBadges,
-      message: newlyAwardedBadges.length > 0
+      isAutoSubmitted, // Indicate if this was an auto-submission
+      message: isAutoSubmitted
+        ? `Time's up! Your quiz has been automatically submitted. You scored ${score} points (${percentage}%).`
+        : newlyAwardedBadges.length > 0
         ? `Congratulations! You earned ${newlyAwardedBadges.length} badge(s) and ${score} points!`
         : `Quiz submitted successfully! You earned ${score} points.`,
     });
@@ -441,7 +454,8 @@ exports.checkQuizCompletion = async (req, res) => {
       return res.status(200).json({
         success: true,
         isCompleted: true,
-        message: 'You have already completed this quiz',
+        testAlreadySubmitted: true,
+        message: 'Test already submitted. You have already completed this quiz.',
         result: {
           id: existingResult._id,
           score: existingResult.score,
