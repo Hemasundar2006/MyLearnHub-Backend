@@ -104,6 +104,7 @@ app.use('/api/admin/settings', require('./routes/admin/settings'));
 app.use('/api/admin/doubts', require('./routes/admin/doubts'));
 app.use('/api/admin/rewards', require('./routes/admin/rewards'));
 app.use('/api/admin/jobs', require('./routes/admin/jobs'));
+app.use('/api/admin/quizzes', require('./routes/admin/quizzes'));
 
 // 404 handler
 app.use((req, res) => {
