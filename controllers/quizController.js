@@ -59,7 +59,7 @@ exports.getAllQuizzes = async (req, res) => {
 
 // @desc    Get quiz by ID (without correct answers)
 // @route   GET /api/quizzes/:id
-// @access  Public
+// @access  Public (but includes completion status if authenticated)
 exports.getQuizById = async (req, res) => {
   try {
     const quiz = await Quiz.findById(req.params.id)
@@ -79,12 +79,37 @@ exports.getQuizById = async (req, res) => {
       });
     }
 
+    // Check if user has already completed this quiz (if authenticated)
+    let isCompleted = false;
+    let userResult = null;
+    
+    if (req.user && req.user.id) {
+      const existingResult = await Result.findOne({
+        userId: req.user.id,
+        quizId: quiz._id,
+      }).sort({ createdAt: -1 }); // Get the latest attempt
+      
+      if (existingResult) {
+        isCompleted = true;
+        userResult = {
+          id: existingResult._id,
+          score: existingResult.score,
+          percentage: existingResult.percentage,
+          correctAnswers: existingResult.correctAnswers,
+          totalQuestions: existingResult.totalQuestions,
+          createdAt: existingResult.createdAt,
+        };
+      }
+    }
+
     res.status(200).json({
       success: true,
       quiz: {
         ...quiz.toObject(),
         timeLimit: quiz.timeLimit || null, // Include time limit
       },
+      isCompleted, // Whether user has completed this quiz
+      userResult, // User's result if completed (null if not completed or not authenticated)
     });
   } catch (error) {
     console.error('Get quiz by ID error:', error);
@@ -155,6 +180,28 @@ exports.submitQuiz = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: 'Quiz is not active',
+      });
+    }
+
+    // Check if user has already completed this quiz
+    const existingResult = await Result.findOne({
+      userId,
+      quizId: quiz._id,
+    }).sort({ createdAt: -1 }); // Get the latest attempt
+
+    if (existingResult) {
+      return res.status(409).json({
+        success: false,
+        message: 'You have already completed this quiz. You can view your results instead.',
+        alreadyCompleted: true,
+        existingResult: {
+          id: existingResult._id,
+          score: existingResult.score,
+          percentage: existingResult.percentage,
+          correctAnswers: existingResult.correctAnswers,
+          totalQuestions: existingResult.totalQuestions,
+          createdAt: existingResult.createdAt,
+        },
       });
     }
 
@@ -362,6 +409,106 @@ exports.getQuizLeaderboard = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error fetching quiz leaderboard',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Check if user has completed a specific quiz
+// @route   GET /api/quizzes/:id/check-completion
+// @access  Private
+exports.checkQuizCompletion = async (req, res) => {
+  try {
+    const { id: quizId } = req.params;
+    const userId = req.user.id;
+
+    // Check if quiz exists
+    const quiz = await Quiz.findById(quizId);
+    if (!quiz) {
+      return res.status(404).json({
+        success: false,
+        message: 'Quiz not found',
+      });
+    }
+
+    // Check if user has completed this quiz
+    const existingResult = await Result.findOne({
+      userId,
+      quizId,
+    }).sort({ createdAt: -1 }); // Get the latest attempt
+
+    if (existingResult) {
+      return res.status(200).json({
+        success: true,
+        isCompleted: true,
+        message: 'You have already completed this quiz',
+        result: {
+          id: existingResult._id,
+          score: existingResult.score,
+          percentage: existingResult.percentage,
+          correctAnswers: existingResult.correctAnswers,
+          totalQuestions: existingResult.totalQuestions,
+          createdAt: existingResult.createdAt,
+        },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      isCompleted: false,
+      message: 'You have not completed this quiz yet',
+    });
+  } catch (error) {
+    console.error('Check quiz completion error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error checking quiz completion',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Get user's quiz result for a specific quiz
+// @route   GET /api/quizzes/:id/my-result
+// @access  Private
+exports.getUserQuizResult = async (req, res) => {
+  try {
+    const { id: quizId } = req.params;
+    const userId = req.user.id;
+
+    // Check if quiz exists
+    const quiz = await Quiz.findById(quizId).select('title topic difficulty');
+    if (!quiz) {
+      return res.status(404).json({
+        success: false,
+        message: 'Quiz not found',
+      });
+    }
+
+    // Get user's result for this quiz
+    const result = await Result.findOne({
+      userId,
+      quizId,
+    })
+      .populate('quizId', 'title topic difficulty')
+      .sort({ createdAt: -1 }); // Get the latest attempt
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: 'You have not completed this quiz yet',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      result,
+    });
+  } catch (error) {
+    console.error('Get user quiz result error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching quiz result',
       error: error.message,
     });
   }
