@@ -95,7 +95,7 @@ exports.getQuizById = async (req, res) => {
 // @access  Private/Admin
 exports.createQuiz = async (req, res) => {
   try {
-    const { title, topic, difficulty, questions, isActive } = req.body;
+    const { title, topic, difficulty, questions, isActive, timeLimit } = req.body;
 
     // Validation
     if (!title || !topic || !difficulty) {
