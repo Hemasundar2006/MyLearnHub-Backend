@@ -200,6 +200,12 @@ const userSchema = new mongoose.Schema(
     profileCompletionRewardClaimedAt: {
       type: Date,
     },
+    badges: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Badge',
+      },
+    ],
   },
   {
     timestamps: true,

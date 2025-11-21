@@ -42,7 +42,7 @@ app.get('/', (req, res) => {
     success: true,
     message: 'MyLearnHub Backend API - Complete Platform',
     version: '3.0.0',
-    endpoints: {
+      endpoints: {
       auth: '/api/auth',
       courses: '/api/courses',
       jobs: '/api/jobs',
@@ -50,6 +50,8 @@ app.get('/', (req, res) => {
       notifications: '/api/notifications',
       thoughts: '/api/thoughts',
       doubts: '/api/doubts',
+      quizzes: '/api/quizzes',
+      leaderboard: '/api/leaderboard',
       admin: {
         auth: '/api/admin/auth',
         dashboard: '/api/admin/dashboard',
@@ -86,6 +88,8 @@ app.use('/api/thoughts', require('./routes/thoughts'));
 app.use('/api/doubts', require('./routes/doubts'));
 app.use('/api/rewards', require('./routes/rewards'));
 app.use('/api/test', require('./routes/test'));
+app.use('/api/quizzes', require('./routes/quizzes'));
+app.use('/api/leaderboard', require('./routes/leaderboard'));
 
 // Admin Routes
 app.use('/api/admin/auth', require('./routes/admin/auth'));
