@@ -33,13 +33,19 @@ exports.getAllQuizzes = async (req, res) => {
 
     const totalQuizzes = await Quiz.countDocuments(query);
 
+    // Format quizzes to include timeLimit
+    const formattedQuizzes = quizzes.map(quiz => ({
+      ...quiz.toObject(),
+      timeLimit: quiz.timeLimit || null, // Include time limit (null if not set)
+    }));
+
     res.status(200).json({
       success: true,
-      count: quizzes.length,
+      count: formattedQuizzes.length,
       total: totalQuizzes,
       page: parseInt(page),
       pages: Math.ceil(totalQuizzes / parseInt(limit)),
-      quizzes,
+      quizzes: formattedQuizzes,
     });
   } catch (error) {
     console.error('Get all quizzes error:', error);
@@ -75,7 +81,10 @@ exports.getQuizById = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      quiz,
+      quiz: {
+        ...quiz.toObject(),
+        timeLimit: quiz.timeLimit || null, // Include time limit
+      },
     });
   } catch (error) {
     console.error('Get quiz by ID error:', error);
@@ -147,6 +156,17 @@ exports.submitQuiz = async (req, res) => {
         success: false,
         message: 'Quiz is not active',
       });
+    }
+
+    // Validate time limit if quiz has one
+    if (quiz.timeLimit && durationSeconds !== undefined && durationSeconds !== null) {
+      const timeLimitSeconds = quiz.timeLimit;
+      if (durationSeconds > timeLimitSeconds) {
+        return res.status(400).json({
+          success: false,
+          message: `Quiz time limit exceeded. Maximum time allowed: ${timeLimitSeconds} seconds (${Math.floor(timeLimitSeconds / 60)} minutes)`,
+        });
+      }
     }
 
     // Calculate score

@@ -169,11 +169,23 @@ exports.createQuiz = async (req, res) => {
       }
     }
 
+    // Validate time limit
+    if (timeLimit !== undefined && timeLimit !== null) {
+      const timeLimitNum = parseInt(timeLimit);
+      if (isNaN(timeLimitNum) || timeLimitNum < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Time limit must be a positive number (in seconds)',
+        });
+      }
+    }
+
     // Create quiz
     const quiz = await Quiz.create({
       title: title.trim(),
       topic: topic.trim(),
       difficulty,
+      timeLimit: timeLimit !== undefined && timeLimit !== null ? parseInt(timeLimit) : null,
       questions: questions.map(q => ({
         questionText: q.questionText.trim(),
         options: q.options.map(opt => opt.trim()),
@@ -213,7 +225,7 @@ exports.createQuiz = async (req, res) => {
 // @access  Private/Admin
 exports.updateQuiz = async (req, res) => {
   try {
-    const { title, topic, difficulty, questions, isActive } = req.body;
+    const { title, topic, difficulty, questions, isActive, timeLimit } = req.body;
 
     let quiz = await Quiz.findById(req.params.id);
 
@@ -245,6 +257,21 @@ exports.updateQuiz = async (req, res) => {
 
     if (isActive !== undefined) {
       quiz.isActive = isActive;
+    }
+
+    if (timeLimit !== undefined) {
+      if (timeLimit === null) {
+        quiz.timeLimit = null; // Allow removing time limit
+      } else {
+        const timeLimitNum = parseInt(timeLimit);
+        if (isNaN(timeLimitNum) || timeLimitNum < 1) {
+          return res.status(400).json({
+            success: false,
+            message: 'Time limit must be a positive number (in seconds)',
+          });
+        }
+        quiz.timeLimit = timeLimitNum;
+      }
     }
 
     // Update questions if provided

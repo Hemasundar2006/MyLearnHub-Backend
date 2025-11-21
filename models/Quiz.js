@@ -51,6 +51,12 @@ const quizSchema = new mongoose.Schema(
         message: 'Difficulty must be Easy, Medium, or Hard',
       },
     },
+    timeLimit: {
+      type: Number,
+      min: [1, 'Time limit must be at least 1 minute'],
+      default: null, // null means no time limit
+      // Time limit in seconds
+    },
     questions: {
       type: [questionSchema],
       required: [true, 'Questions are required'],
