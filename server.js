@@ -79,6 +79,7 @@ app.get('/', (req, res) => {
       quizzes: '/api/quizzes',
       leaderboard: '/api/leaderboard',
       chat: '/api/chat',
+      coins: '/api/coins',
       admin: {
         auth: '/api/admin/auth',
         dashboard: '/api/admin/dashboard',
@@ -92,6 +93,7 @@ app.get('/', (req, res) => {
         doubts: '/api/admin/doubts',
         jobs: '/api/admin/jobs',
         chat: '/api/admin/chat',
+        coins: '/api/admin/coins',
       },
     },
   });
@@ -119,6 +121,7 @@ app.use('/api/test', require('./routes/test'));
 app.use('/api/quizzes', require('./routes/quizzes'));
 app.use('/api/leaderboard', require('./routes/leaderboard'));
 app.use('/api/chat', require('./routes/chat'));
+app.use('/api/coins', require('./routes/coins'));
 
 // Admin Routes
 app.use('/api/admin/auth', require('./routes/admin/auth'));
@@ -135,6 +138,7 @@ app.use('/api/admin/rewards', require('./routes/admin/rewards'));
 app.use('/api/admin/jobs', require('./routes/admin/jobs'));
 app.use('/api/admin/quizzes', require('./routes/admin/quizzes'));
 app.use('/api/admin/chat', require('./routes/admin/chat'));
+app.use('/api/admin/coins', require('./routes/admin/coins'));
 
 // 404 handler
 app.use((req, res) => {

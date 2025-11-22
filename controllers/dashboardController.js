@@ -28,6 +28,26 @@ exports.getDashboardStats = async (req, res) => {
     });
     const totalQuizSubmissions = await Result.countDocuments();
     const totalQuizzes = await Quiz.countDocuments();
+    
+    // Chat statistics
+    const totalChatSessions = await ChatSession.countDocuments();
+    const pendingChatRequests = await ChatSession.countDocuments({ status: 'pending' });
+    const activeChatSessions = await ChatSession.countDocuments({ status: 'active' });
+    const closedChatSessions = await ChatSession.countDocuments({ status: 'closed' });
+    const timeoutChatSessions = await ChatSession.countDocuments({ status: 'timeout' });
+    
+    // Calculate total coins spent on chats
+    const chatSessionsWithCoins = await ChatSession.find({
+      totalCoinsSpent: { $gt: 0 }
+    }).select('totalCoinsSpent');
+    const totalCoinsSpentOnChats = chatSessionsWithCoins.reduce((sum, session) => {
+      return sum + (session.totalCoinsSpent || 0);
+    }, 0);
+    
+    // Chat sessions in last 30 days
+    const chatSessionsLast30Days = await ChatSession.countDocuments({
+      createdAt: { $gte: thirtyDaysAgo },
+    });
 
     // Users in last 30 days
     const usersLast30Days = await User.countDocuments({
@@ -112,6 +132,14 @@ exports.getDashboardStats = async (req, res) => {
         totalProfileCompletions,
         totalQuizSubmissions,
         totalQuizzes,
+        // Chat statistics
+        totalChatSessions,
+        pendingChatRequests,
+        activeChatSessions,
+        closedChatSessions,
+        timeoutChatSessions,
+        totalCoinsSpentOnChats,
+        chatSessionsThisMonth: chatSessionsLast30Days,
         usersThisMonth: usersLast30Days,
         coursesThisMonth: coursesLast30Days,
         enrollmentsThisMonth: enrollmentsLast30Days,
