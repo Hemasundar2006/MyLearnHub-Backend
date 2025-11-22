@@ -1,16 +1,42 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const http = require('http');
+const { Server } = require('socket.io');
 const connectDB = require('./config/db');
 const seedAdmin = require('./utils/seedAdmin');
 const seedCourses = require('./utils/seedCourses');
 const seedNotifications = require('./utils/seedNotifications');
+const { initializeChatHandler } = require('./socket/chatHandler');
+const { startBillingService } = require('./services/billingService');
 
 // Load environment variables
 dotenv.config();
 
 // Initialize express app
 const app = express();
+
+// Create HTTP server
+const server = http.createServer(app);
+
+// Initialize Socket.IO
+const io = new Server(server, {
+  cors: {
+    origin: process.env.CLIENT_URL || '*',
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+});
+
+// Initialize chat handler
+initializeChatHandler(io);
+
+// Set io instance for socket service
+const socketService = require('./services/socketService');
+socketService.setIO(io);
+
+// Start billing service
+startBillingService(io);
 
 // Connect to database and seed data
 connectDB().then(() => {
@@ -52,6 +78,7 @@ app.get('/', (req, res) => {
       doubts: '/api/doubts',
       quizzes: '/api/quizzes',
       leaderboard: '/api/leaderboard',
+      chat: '/api/chat',
       admin: {
         auth: '/api/admin/auth',
         dashboard: '/api/admin/dashboard',
@@ -64,6 +91,7 @@ app.get('/', (req, res) => {
         settings: '/api/admin/settings',
         doubts: '/api/admin/doubts',
         jobs: '/api/admin/jobs',
+        chat: '/api/admin/chat',
       },
     },
   });
@@ -90,6 +118,7 @@ app.use('/api/rewards', require('./routes/rewards'));
 app.use('/api/test', require('./routes/test'));
 app.use('/api/quizzes', require('./routes/quizzes'));
 app.use('/api/leaderboard', require('./routes/leaderboard'));
+app.use('/api/chat', require('./routes/chat'));
 
 // Admin Routes
 app.use('/api/admin/auth', require('./routes/admin/auth'));
@@ -105,6 +134,7 @@ app.use('/api/admin/doubts', require('./routes/admin/doubts'));
 app.use('/api/admin/rewards', require('./routes/admin/rewards'));
 app.use('/api/admin/jobs', require('./routes/admin/jobs'));
 app.use('/api/admin/quizzes', require('./routes/admin/quizzes'));
+app.use('/api/admin/chat', require('./routes/admin/chat'));
 
 // 404 handler
 app.use((req, res) => {
@@ -128,11 +158,12 @@ app.use((err, req, res, next) => {
 // Start server
 const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log('========================================');
   console.log(`🚀 Server running in ${process.env.NODE_ENV} mode`);
   console.log(`📡 Server listening on port ${PORT}`);
   console.log(`🌍 API URL: http://localhost:${PORT}`);
+  console.log(`🔌 Socket.IO enabled on port ${PORT}`);
   console.log('========================================');
   console.log('\n📚 API Endpoints:');
   console.log('   User Auth:');
@@ -228,6 +259,18 @@ const server = app.listen(PORT, () => {
   console.log('     - GET    /api/admin/jobs/:jobId/applications');
   console.log('     - GET    /api/admin/jobs/applications');
   console.log('     - PUT    /api/admin/jobs/applications/:applicationId/status');
+  console.log('   Chat System:');
+  console.log('     - POST   /api/chat/request');
+  console.log('     - POST   /api/chat/end/:sessionId');
+  console.log('     - GET    /api/chat/sessions');
+  console.log('     - GET    /api/chat/messages/:sessionId');
+  console.log('   Admin Chat:');
+  console.log('     - POST   /api/admin/chat/register');
+  console.log('     - POST   /api/admin/chat/login');
+  console.log('     - GET    /api/admin/chat/pending');
+  console.log('     - POST   /api/admin/chat/accept/:sessionId');
+  console.log('     - POST   /api/admin/chat/end/:sessionId');
+  console.log('     - GET    /api/admin/chat/messages/:sessionId');
   console.log('========================================\n');
 });
 
