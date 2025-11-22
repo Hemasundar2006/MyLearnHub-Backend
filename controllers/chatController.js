@@ -401,10 +401,12 @@ exports.requestChat = async (req, res) => {
     });
   } catch (error) {
     console.error('Request chat error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Server error creating chat request',
-      error: error.message,
+      error: process.env.NODE_ENV === 'development' ? error.message : 'An error occurred while creating the chat request',
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
     });
   }
 };
@@ -561,30 +563,60 @@ exports.endChat = async (req, res) => {
     // Get user ID (handle both populated and non-populated)
     const userIdToDebit = chatSession.userId._id || chatSession.userId;
 
+    // Get user ID (handle both populated and non-populated)
+    const userIdToDebit = chatSession.userId._id || chatSession.userId;
+
     // Debit coins from user
     const user = await User.findById(userIdToDebit);
-    if (user) {
-      const finalCoins = Math.max(0, user.coins - totalCoins);
-      user.coins = finalCoins;
-
-      // Add transaction record
-      user.coinTransactions.push({
-        amount: -totalCoins,
-        type: 'spent',
-        reason: `Chat session with admin (${totalMinutes} minutes)`,
-        metadata: {
-          sessionId: chatSession._id,
-          totalMinutes,
-        },
-        timestamp: new Date(),
+    if (!user) {
+      console.error(`User not found for session ${sessionId}`);
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
       });
+    }
 
+    // Store original coins for logging
+    const originalCoins = user.coins;
+    const finalCoins = Math.max(0, user.coins - totalCoins);
+    user.coins = finalCoins;
+
+    // Add transaction record
+    user.coinTransactions.push({
+      amount: -totalCoins,
+      type: 'spent',
+      reason: `Chat session with admin (${totalMinutes} minutes)`,
+      metadata: {
+        sessionId: chatSession._id,
+        totalMinutes,
+      },
+      timestamp: new Date(),
+    });
+
+    // Save user with coin deduction
+    try {
       await user.save();
+      console.log(`✅ Debited ${totalCoins} coins from user ${user._id}. Balance: ${originalCoins} → ${finalCoins}`);
+    } catch (saveError) {
+      console.error('Error saving user after coin deduction:', saveError);
+      return res.status(500).json({
+        success: false,
+        message: 'Error updating user balance',
+        error: saveError.message,
+      });
+    }
 
-      // Emit coin update to user
+    // Emit coin update to user via Socket.IO
+    try {
       emitToUser(user._id.toString(), 'coinUpdate', {
         coins: user.coins,
+        debited: totalCoins,
+        sessionId: chatSession._id,
+        message: `Chat session ended. ${totalCoins} coins deducted.`,
       });
+    } catch (emitError) {
+      console.error('Error emitting coin update:', emitError);
+      // Don't fail the request if emit fails
     }
 
     // Emit chat ended to both parties
@@ -596,10 +628,15 @@ exports.endChat = async (req, res) => {
       endTime: chatSession.endTime,
     };
 
-    emitToUser(userIdToDebit.toString(), 'chatEnded', endData);
-    if (chatSession.adminId) {
-      const adminIdToNotify = chatSession.adminId._id || chatSession.adminId;
-      emitToAdmin(adminIdToNotify.toString(), 'chatEnded', endData);
+    try {
+      emitToUser(userIdToDebit.toString(), 'chatEnded', endData);
+      if (chatSession.adminId) {
+        const adminIdToNotify = chatSession.adminId._id || chatSession.adminId;
+        emitToAdmin(adminIdToNotify.toString(), 'chatEnded', endData);
+      }
+    } catch (emitError) {
+      console.error('Error emitting chat ended event:', emitError);
+      // Don't fail the request if emit fails
     }
 
     res.status(200).json({
@@ -611,14 +648,26 @@ exports.endChat = async (req, res) => {
         totalTimeInMinutes: chatSession.totalTimeInMinutes,
         totalCoinsSpent: chatSession.totalCoinsSpent,
         endTime: chatSession.endTime,
+        startTime: chatSession.startTime,
+      },
+      coins: {
+        debited: totalCoins,
+        previousBalance: originalCoins,
+        newBalance: user.coins,
+      },
+      duration: {
+        minutes: totalMinutes,
+        display: `${totalMinutes} ${totalMinutes === 1 ? 'minute' : 'minutes'}`,
       },
     });
   } catch (error) {
     console.error('End chat error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Server error ending chat',
-      error: error.message,
+      error: process.env.NODE_ENV === 'development' ? error.message : 'An error occurred while ending the chat session',
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
     });
   }
 };

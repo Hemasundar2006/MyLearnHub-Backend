@@ -87,13 +87,18 @@ const startBillingService = (io) => {
             const userSocketId = activeConnections.users.get(user._id.toString());
             if (userSocketId && io) {
               io.to(userSocketId).emit('chatTimeout', {
-                sessionId: session._id,
+                sessionId: session._id.toString(),
                 message: 'Chat session ended due to insufficient coins',
                 coinsRemaining: user.coins,
+                totalCoinsSpent: actualCoinsUsed,
+                totalMinutes: actualMinutes,
               });
 
               io.to(userSocketId).emit('coinUpdate', {
                 coins: user.coins,
+                debited: actualCoinsUsed,
+                sessionId: session._id.toString(),
+                message: 'Chat session ended due to insufficient coins',
               });
             }
 
@@ -112,6 +117,9 @@ const startBillingService = (io) => {
             continue;
           }
 
+          // Store original coins for logging
+          const originalCoins = user.coins;
+
           // Debit coins
           user.coins = user.coins - coinsToDebit;
 
@@ -127,23 +135,31 @@ const startBillingService = (io) => {
             timestamp: now,
           });
 
-          await user.save();
+          // Save user with coin deduction
+          try {
+            await user.save();
+            
+            // Update session last billing time
+            session.lastBillingTime = now;
+            await session.save();
 
-          // Update session last billing time
-          session.lastBillingTime = now;
-          await session.save();
+            // Notify user of coin update via Socket.IO
+            const userSocketId = activeConnections.users.get(user._id.toString());
+            if (userSocketId && io) {
+              io.to(userSocketId).emit('coinUpdate', {
+                coins: user.coins,
+                debited: coinsToDebit,
+                sessionId: session._id.toString(),
+                previousBalance: originalCoins,
+                message: `${coinsToDebit} coins deducted for chat session`,
+              });
+            }
 
-          // Notify user of coin update via Socket.IO
-          const userSocketId = activeConnections.users.get(user._id.toString());
-          if (userSocketId && io) {
-            io.to(userSocketId).emit('coinUpdate', {
-              coins: user.coins,
-              debited: coinsToDebit,
-              sessionId: session._id,
-            });
+            console.log(`💸 Debited ${coinsToDebit} coins from user ${user._id} for session ${session._id}. Balance: ${originalCoins} → ${user.coins}`);
+          } catch (saveError) {
+            console.error(`❌ Error saving user coins for session ${session._id}:`, saveError);
+            // Continue to next session even if this one fails
           }
-
-          console.log(`💸 Debited ${coinsToDebit} coins from user ${user._id} for session ${session._id}`);
         } catch (error) {
           console.error(`Error processing billing for session ${session._id}:`, error);
         }
