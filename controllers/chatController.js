@@ -829,14 +829,24 @@ exports.endChat = async (req, res) => {
 // @access  Private (Admin)
 exports.getPendingChats = async (req, res) => {
   try {
+    const adminId = req.admin._id.toString();
+    
+    // Get pending sessions
     const pendingSessions = await ChatSession.find({ status: 'pending' })
       .populate('userId', 'name email coins')
       .sort({ createdAt: -1 });
 
-    // Format sessions with calculated values
-    const formattedSessions = pendingSessions.map((session) => {
+    // Get active sessions for this admin
+    const activeSessions = await ChatSession.find({
+      status: 'active',
+      adminId: adminId,
+    })
+      .populate('userId', 'name email coins')
+      .sort({ startTime: -1 });
+
+    // Format pending sessions
+    const formattedPendingSessions = pendingSessions.map((session) => {
       const sessionObj = session.toObject();
-      // Include requested duration and coins if available
       if (session.requestedDuration) {
         sessionObj.requestedDuration = session.requestedDuration;
         sessionObj.requestedCoins = session.requestedCoins || session.requestedDuration * COINS_PER_MINUTE;
@@ -844,10 +854,36 @@ exports.getPendingChats = async (req, res) => {
       return sessionObj;
     });
 
+    // Format active sessions with time information
+    const formattedActiveSessions = activeSessions.map((session) => {
+      const sessionObj = session.toObject();
+      const now = new Date();
+      const startTime = session.startTime || session.createdAt;
+      const elapsedMinutes = Math.floor((now - startTime) / (1000 * 60));
+      const requestedDuration = session.requestedDuration || 0;
+      const remainingMinutes = Math.max(0, requestedDuration - elapsedMinutes);
+      const isTimeCompleted = remainingMinutes <= 0;
+
+      sessionObj.elapsedMinutes = elapsedMinutes;
+      sessionObj.remainingMinutes = remainingMinutes;
+      sessionObj.isTimeCompleted = isTimeCompleted;
+      sessionObj.requestedDuration = requestedDuration;
+      sessionObj.requestedCoins = session.requestedCoins || requestedDuration * COINS_PER_MINUTE;
+      sessionObj.canContinue = !isTimeCompleted && session.status === 'active';
+
+      return sessionObj;
+    });
+
     res.status(200).json({
       success: true,
-      count: formattedSessions.length,
-      sessions: formattedSessions,
+      pending: {
+        count: formattedPendingSessions.length,
+        sessions: formattedPendingSessions,
+      },
+      active: {
+        count: formattedActiveSessions.length,
+        sessions: formattedActiveSessions,
+      },
     });
   } catch (error) {
     console.error('Get pending chats error:', error);
@@ -881,6 +917,115 @@ exports.getUserSessions = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error fetching chat sessions',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Get active sessions for admin
+// @route   GET /api/chat/admin/active
+// @access  Private (Admin)
+exports.getAdminActiveSessions = async (req, res) => {
+  try {
+    const adminId = req.admin._id.toString();
+
+    const activeSessions = await ChatSession.find({
+      status: 'active',
+      adminId: adminId,
+    })
+      .populate('userId', 'name email coins')
+      .sort({ startTime: -1 });
+
+    // Format active sessions with time information
+    const formattedSessions = activeSessions.map((session) => {
+      const sessionObj = session.toObject();
+      const now = new Date();
+      const startTime = session.startTime || session.createdAt;
+      const elapsedMinutes = Math.floor((now - startTime) / (1000 * 60));
+      const requestedDuration = session.requestedDuration || 0;
+      const remainingMinutes = Math.max(0, requestedDuration - elapsedMinutes);
+      const isTimeCompleted = remainingMinutes <= 0;
+
+      sessionObj.elapsedMinutes = elapsedMinutes;
+      sessionObj.remainingMinutes = remainingMinutes;
+      sessionObj.isTimeCompleted = isTimeCompleted;
+      sessionObj.requestedDuration = requestedDuration;
+      sessionObj.requestedCoins = session.requestedCoins || requestedDuration * COINS_PER_MINUTE;
+      sessionObj.canContinue = !isTimeCompleted && session.status === 'active';
+      sessionObj.startTime = startTime;
+
+      return sessionObj;
+    });
+
+    res.status(200).json({
+      success: true,
+      count: formattedSessions.length,
+      sessions: formattedSessions,
+    });
+  } catch (error) {
+    console.error('Get admin active sessions error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching active sessions',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Check session status and remaining time
+// @route   GET /api/chat/admin/session/:sessionId/status
+// @access  Private (Admin)
+exports.getSessionStatus = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const adminId = req.admin._id.toString();
+
+    const session = await ChatSession.findById(sessionId)
+      .populate('userId', 'name email coins');
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: 'Chat session not found',
+      });
+    }
+
+    // Verify admin owns this session
+    const sessionAdminId = session.adminId?._id ? session.adminId._id.toString() : session.adminId?.toString();
+    if (sessionAdminId !== adminId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view this session',
+      });
+    }
+
+    const now = new Date();
+    const startTime = session.startTime || session.createdAt;
+    const elapsedMinutes = Math.floor((now - startTime) / (1000 * 60));
+    const requestedDuration = session.requestedDuration || 0;
+    const remainingMinutes = Math.max(0, requestedDuration - elapsedMinutes);
+    const isTimeCompleted = remainingMinutes <= 0;
+    const canContinue = !isTimeCompleted && session.status === 'active';
+
+    res.status(200).json({
+      success: true,
+      session: {
+        id: session._id,
+        status: session.status,
+        requestedDuration: requestedDuration,
+        requestedCoins: session.requestedCoins || requestedDuration * COINS_PER_MINUTE,
+        startTime: startTime,
+        elapsedMinutes: elapsedMinutes,
+        remainingMinutes: remainingMinutes,
+        isTimeCompleted: isTimeCompleted,
+        canContinue: canContinue,
+      },
+    });
+  } catch (error) {
+    console.error('Get session status error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching session status',
       error: error.message,
     });
   }

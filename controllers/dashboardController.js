@@ -4,6 +4,7 @@ const Enrollment = require('../models/Enrollment');
 const Doubt = require('../models/Doubt');
 const Result = require('../models/Result');
 const Quiz = require('../models/Quiz');
+const ChatSession = require('../models/ChatSession');
 
 // @desc    Get dashboard statistics
 // @route   GET /api/admin/dashboard/stats
@@ -184,6 +185,13 @@ exports.getRecentActivity = async (req, res) => {
       .populate('userId', 'name email avatar')
       .populate('quizId', 'title topic difficulty');
 
+    // Get recent chat support requests (all statuses to show complete history)
+    const recentChatRequests = await ChatSession.find()
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate('userId', 'name email avatar')
+      .populate('adminId', 'adminName');
+
     // Combine and format activity
     const activity = [
       ...recentEnrollments.map(e => ({
@@ -254,6 +262,55 @@ exports.getRecentActivity = async (req, res) => {
         timestamp: r.createdAt,
         icon: 'trophy',
       })),
+      ...recentChatRequests.map(c => {
+        let message = '';
+        let priority = 'medium';
+        
+        if (c.status === 'pending') {
+          message = `${c.userId?.name || 'User'} requested chat support (${c.requestedDuration || 'N/A'} minutes)`;
+          priority = 'high';
+        } else if (c.status === 'active') {
+          message = `${c.userId?.name || 'User'} is in active chat with ${c.adminId?.adminName || 'Admin'}`;
+          priority = 'high';
+        } else if (c.status === 'closed') {
+          message = `Chat session with ${c.userId?.name || 'User'} ended (${c.totalTimeInMinutes || 0} minutes, ${c.totalCoinsSpent || 0} coins)`;
+          priority = 'low';
+        } else if (c.status === 'timeout') {
+          message = `Chat session with ${c.userId?.name || 'User'} timed out (insufficient coins)`;
+          priority = 'low';
+        } else {
+          message = `${c.userId?.name || 'User'} chat session (${c.status})`;
+        }
+
+        return {
+          type: 'chat_support',
+          message,
+          user: {
+            id: c.userId?._id,
+            name: c.userId?.name,
+            email: c.userId?.email,
+            avatar: c.userId?.avatar,
+          },
+          chat: {
+            id: c._id,
+            status: c.status,
+            requestedDuration: c.requestedDuration,
+            requestedCoins: c.requestedCoins,
+            totalTimeInMinutes: c.totalTimeInMinutes,
+            totalCoinsSpent: c.totalCoinsSpent,
+            startTime: c.startTime,
+            endTime: c.endTime,
+            createdAt: c.createdAt,
+          },
+          admin: c.adminId ? {
+            id: c.adminId._id,
+            name: c.adminId.adminName,
+          } : null,
+          timestamp: c.createdAt,
+          icon: 'message-circle',
+          priority,
+        };
+      }),
     ];
 
     // Sort by timestamp and limit

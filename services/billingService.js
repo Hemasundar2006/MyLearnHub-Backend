@@ -80,12 +80,21 @@ const startBillingService = (io) => {
               if (session.adminId) {
                 const adminSocketId = activeConnections.admins.get(session.adminId.toString());
                 if (adminSocketId && io) {
+                  io.to(adminSocketId).emit('chatAutoEnded', {
+                    sessionId: session._id.toString(),
+                    message: `Chat session completed. Requested duration (${session.requestedDuration} minutes) reached.`,
+                    totalTimeInMinutes: session.requestedDuration,
+                    totalCoinsSpent: totalCoinsSpent,
+                    reason: 'duration_completed',
+                  });
+
                   io.to(adminSocketId).emit('chatEnded', {
                     sessionId: session._id.toString(),
                     status: 'closed',
                     message: `Chat session auto-ended. Requested duration (${session.requestedDuration} minutes) completed.`,
                     totalTimeInMinutes: session.requestedDuration,
                     totalCoinsSpent: totalCoinsSpent,
+                    endTime: endTime,
                     reason: 'duration_completed',
                   });
                 }
