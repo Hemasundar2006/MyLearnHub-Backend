@@ -288,6 +288,14 @@ exports.deleteThought = async (req, res) => {
 // @access  Private (User)
 exports.getCoinBalance = async (req, res) => {
   try {
+    // Disable caching for this endpoint to ensure fresh data
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    });
+
+    // Always fetch fresh user data from database
     const user = await User.findById(req.user.id).select('coins name email');
 
     if (!user) {
@@ -306,6 +314,7 @@ exports.getCoinBalance = async (req, res) => {
           email: user.email,
         },
       },
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Get coin balance error:', error);

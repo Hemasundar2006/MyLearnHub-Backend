@@ -259,6 +259,18 @@ const initializeChatHandler = (io) => {
       }
     });
 
+    // Handle chat auto-ended (duration completed)
+    socket.on('chatAutoEnded', (data) => {
+      const { sessionId, userId } = data;
+      const userSocketId = activeConnections.users.get(userId);
+      if (userSocketId) {
+        io.to(userSocketId).emit('chatAutoEnded', {
+          sessionId,
+          message: 'Chat session completed. Requested duration reached.',
+        });
+      }
+    });
+
     // Handle disconnect
     socket.on('disconnect', () => {
       console.log(`Socket disconnected: ${socket.id}`);

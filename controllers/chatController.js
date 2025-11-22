@@ -355,7 +355,7 @@ exports.requestChat = async (req, res) => {
       });
     }
 
-    // Create new chat session with requested duration
+    // Create new chat session with requested duration (coins NOT deducted yet)
     const chatSession = await ChatSession.create({
       userId,
       status: 'pending',
@@ -374,15 +374,16 @@ exports.requestChat = async (req, res) => {
       userEmail: chatSession.userId.email,
       requestedDuration: requestedMinutes,
       requestedCoins: coinsNeeded,
+      userCoins: user.coins,
       createdAt: chatSession.createdAt,
     });
 
-    // Calculate remaining coins after request
+    // Calculate remaining coins after request (for display only, not actually deducted)
     const remainingCoins = user.coins - coinsNeeded;
 
     res.status(201).json({
       success: true,
-      message: 'Chat request created successfully',
+      message: 'Chat request created successfully. Coins will be deducted when admin accepts.',
       session: {
         id: chatSession._id,
         status: chatSession.status,
@@ -391,12 +392,17 @@ exports.requestChat = async (req, res) => {
         requestedCoins: chatSession.requestedCoins,
         createdAt: chatSession.createdAt,
       },
+      coins: {
+        current: user.coins,
+        willBeDeducted: coinsNeeded,
+        willRemain: remainingCoins,
+      },
       coinsNeeded: coinsNeeded,
       remainingCoins: remainingCoins,
       display: {
         time: `${requestedMinutes} ${requestedMinutes === 1 ? 'minute' : 'minutes'}`,
         coins: `${coinsNeeded} coins`,
-        remaining: `${remainingCoins} coins remaining`,
+        remaining: `${remainingCoins} coins will remain after acceptance`,
       },
     });
   } catch (error) {
@@ -437,9 +443,17 @@ exports.acceptChat = async (req, res) => {
       });
     }
 
-    // Check if user still has minimum coins
+    // Get user and check coins
     const user = await User.findById(chatSession.userId);
-    if (!user || user.coins < MINIMUM_COINS_REQUIRED) {
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Check if user has minimum coins
+    if (user.coins < MINIMUM_COINS_REQUIRED) {
       // Update session status to closed
       chatSession.status = 'closed';
       chatSession.endTime = new Date();
@@ -451,12 +465,73 @@ exports.acceptChat = async (req, res) => {
       });
     }
 
+    // Check if user has enough coins for requested duration
+    const requestedCoins = chatSession.requestedCoins || (chatSession.requestedDuration * COINS_PER_MINUTE);
+    if (user.coins < requestedCoins) {
+      // Update session status to closed
+      chatSession.status = 'closed';
+      chatSession.endTime = new Date();
+      await chatSession.save();
+
+      return res.status(400).json({
+        success: false,
+        message: `User has insufficient coins. Required: ${requestedCoins}, Available: ${user.coins}`,
+        requiredCoins: requestedCoins,
+        availableCoins: user.coins,
+      });
+    }
+
+    // Deduct coins when admin accepts
+    const originalCoins = user.coins;
+    user.coins = user.coins - requestedCoins;
+
+    // Add transaction record
+    user.coinTransactions.push({
+      amount: -requestedCoins,
+      type: 'spent',
+      reason: `Chat session started (${chatSession.requestedDuration || 'N/A'} minutes) - Coins deducted on acceptance`,
+      metadata: {
+        action: 'chat_accepted',
+        sessionId: chatSession._id,
+        requestedDuration: chatSession.requestedDuration,
+        requestedCoins: requestedCoins,
+      },
+      timestamp: new Date(),
+    });
+
+    // Save user with coins deducted
+    try {
+      await user.save();
+      console.log(`✅ Deducted ${requestedCoins} coins when admin accepted chat. Balance: ${originalCoins} → ${user.coins}`);
+    } catch (saveError) {
+      console.error('Error saving user after coin deduction:', saveError);
+      return res.status(500).json({
+        success: false,
+        message: 'Error deducting coins for chat session',
+        error: saveError.message,
+      });
+    }
+
     // Accept the chat
     chatSession.adminId = adminId;
     chatSession.status = 'active';
     chatSession.startTime = new Date();
     chatSession.lastBillingTime = new Date();
     await chatSession.save();
+
+    // Emit coin update to user via Socket.IO
+    try {
+      emitToUser(user._id.toString(), 'coinUpdate', {
+        coins: user.coins,
+        debited: requestedCoins,
+        previousBalance: originalCoins,
+        sessionId: chatSession._id.toString(),
+        message: `${requestedCoins} coins deducted - Chat started`,
+      });
+    } catch (emitError) {
+      console.error('Error emitting coin update:', emitError);
+      // Don't fail the request if emit fails
+    }
 
     // Populate admin and user info
     await chatSession.populate('adminId', 'adminName');
@@ -480,13 +555,20 @@ exports.acceptChat = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Chat session accepted',
+      message: 'Chat session accepted. Coins have been deducted.',
       session: {
         id: chatSession._id,
         status: chatSession.status,
         userId: chatSession.userId,
         adminId: chatSession.adminId,
         startTime: chatSession.startTime,
+        requestedDuration: chatSession.requestedDuration,
+        requestedCoins: requestedCoins,
+      },
+      coins: {
+        debited: requestedCoins,
+        previousBalance: originalCoins,
+        newBalance: user.coins,
       },
     });
   } catch (error) {
@@ -551,19 +633,12 @@ exports.endChat = async (req, res) => {
     const startTime = chatSession.startTime || chatSession.createdAt;
     const timeDiff = endTime - startTime;
     const totalMinutes = Math.ceil(timeDiff / (1000 * 60));
-    const totalCoins = totalMinutes * COINS_PER_MINUTE;
-
-    // Update session
-    chatSession.endTime = endTime;
-    chatSession.totalTimeInMinutes = totalMinutes;
-    chatSession.totalCoinsSpent = totalCoins;
-    chatSession.status = 'closed';
-    await chatSession.save();
+    const totalCoinsNeeded = totalMinutes * COINS_PER_MINUTE;
 
     // Get user ID (handle both populated and non-populated)
     const userIdToDebit = chatSession.userId._id || chatSession.userId;
 
-    // Debit coins from user
+    // Get fresh user data
     const user = await User.findById(userIdToDebit);
     if (!user) {
       console.error(`User not found for session ${sessionId}`);
@@ -575,27 +650,95 @@ exports.endChat = async (req, res) => {
 
     // Store original coins for logging
     const originalCoins = user.coins;
-    const finalCoins = Math.max(0, user.coins - totalCoins);
-    user.coins = finalCoins;
+    
+    // Check if coins were already deducted on acceptance
+    const coinsAlreadyDeductedOnAccept = chatSession.requestedCoins && chatSession.requestedCoins > 0;
+    
+    let coinsToAdjust = 0;
+    let finalCoins = user.coins;
+    let alreadyDeducted = 0;
 
-    // Add transaction record
-    user.coinTransactions.push({
-      amount: -totalCoins,
-      type: 'spent',
-      reason: `Chat session with admin (${totalMinutes} minutes)`,
-      metadata: {
-        sessionId: chatSession._id,
-        totalMinutes,
-      },
-      timestamp: new Date(),
-    });
+    if (coinsAlreadyDeductedOnAccept) {
+      // Coins were deducted when admin accepted - calculate adjustment
+      alreadyDeducted = chatSession.requestedCoins;
+      coinsToAdjust = totalCoinsNeeded - alreadyDeducted;
+      
+      console.log(`📊 Session ${sessionId}: Coins deducted on accept: ${alreadyDeducted}, Total needed: ${totalCoinsNeeded}, Adjustment: ${coinsToAdjust}`);
+    } else {
+      // Coins not deducted on accept - use per-minute billing
+      // Get all transactions for this session
+      const sessionTransactions = user.coinTransactions.filter(
+        tx => tx.metadata && tx.metadata.sessionId && 
+        tx.metadata.sessionId.toString() === chatSession._id.toString()
+      );
+      
+      alreadyDeducted = Math.abs(
+        sessionTransactions
+          .filter(tx => tx.amount < 0)
+          .reduce((sum, tx) => sum + tx.amount, 0)
+      );
+      
+      coinsToAdjust = totalCoinsNeeded - alreadyDeducted;
+      console.log(`📊 Session ${sessionId}: Total needed: ${totalCoinsNeeded}, Already deducted: ${alreadyDeducted}, Adjustment: ${coinsToAdjust}`);
+    }
 
-    // Save user with coin deduction
+    if (coinsToAdjust > 0) {
+      // Need to debit additional coins (chat ran longer than expected)
+      finalCoins = Math.max(0, user.coins - coinsToAdjust);
+      user.coins = finalCoins;
+
+      // Add transaction record for additional deduction
+      user.coinTransactions.push({
+        amount: -coinsToAdjust,
+        type: 'spent',
+        reason: `Chat session additional time (${totalMinutes} minutes total, ${coinsToAdjust} coins additional)`,
+        metadata: {
+          sessionId: chatSession._id,
+          totalMinutes,
+          additionalCoins: coinsToAdjust,
+        },
+        timestamp: new Date(),
+      });
+    } else if (coinsToAdjust < 0) {
+      // Refund excess coins (chat ended earlier than requested)
+      const refundAmount = Math.abs(coinsToAdjust);
+      finalCoins = user.coins + refundAmount;
+      user.coins = finalCoins;
+
+      // Add transaction record for refund
+      user.coinTransactions.push({
+        amount: refundAmount,
+        type: 'bonus',
+        reason: `Chat session refund (${totalMinutes} minutes used, ${refundAmount} coins refunded)`,
+        metadata: {
+          sessionId: chatSession._id,
+          totalMinutes,
+          refundAmount: refundAmount,
+        },
+        timestamp: new Date(),
+      });
+    }
+    // If coinsToAdjust === 0, no adjustment needed (exact amount already deducted)
+
+    // Update session
+    chatSession.endTime = endTime;
+    chatSession.totalTimeInMinutes = totalMinutes;
+    chatSession.totalCoinsSpent = totalCoinsNeeded;
+    chatSession.status = 'closed';
+    await chatSession.save();
+
+    // Save user with coin adjustment (if any)
     try {
       await user.save();
-      console.log(`✅ Debited ${totalCoins} coins from user ${user._id}. Balance: ${originalCoins} → ${finalCoins}`);
+      if (coinsToAdjust > 0) {
+        console.log(`✅ Additional ${coinsToAdjust} coins debited for extended chat. Balance: ${originalCoins} → ${finalCoins}`);
+      } else if (coinsToAdjust < 0) {
+        console.log(`✅ Refunded ${Math.abs(coinsToAdjust)} coins for shorter chat. Balance: ${originalCoins} → ${finalCoins}`);
+      } else {
+        console.log(`✅ Chat ended. No coin adjustment needed (already deducted). Balance: ${user.coins}`);
+      }
     } catch (saveError) {
-      console.error('Error saving user after coin deduction:', saveError);
+      console.error('Error saving user after coin adjustment:', saveError);
       return res.status(500).json({
         success: false,
         message: 'Error updating user balance',
@@ -605,11 +748,19 @@ exports.endChat = async (req, res) => {
 
     // Emit coin update to user via Socket.IO
     try {
+      const updateMessage = coinsToAdjust > 0 
+        ? `Chat session ended. Additional ${coinsToAdjust} coins deducted.`
+        : coinsToAdjust < 0
+        ? `Chat session ended. ${Math.abs(coinsToAdjust)} coins refunded.`
+        : `Chat session ended. No additional charges.`;
+
       emitToUser(user._id.toString(), 'coinUpdate', {
         coins: user.coins,
-        debited: totalCoins,
-        sessionId: chatSession._id,
-        message: `Chat session ended. ${totalCoins} coins deducted.`,
+        debited: coinsToAdjust > 0 ? coinsToAdjust : 0,
+        refunded: coinsToAdjust < 0 ? Math.abs(coinsToAdjust) : 0,
+        previousBalance: originalCoins,
+        sessionId: chatSession._id.toString(),
+        message: updateMessage,
       });
     } catch (emitError) {
       console.error('Error emitting coin update:', emitError);
@@ -648,7 +799,11 @@ exports.endChat = async (req, res) => {
         startTime: chatSession.startTime,
       },
       coins: {
-        debited: totalCoins,
+        totalSpent: totalCoinsNeeded,
+        alreadyDeducted: alreadyDeducted,
+        adjustment: coinsToAdjust,
+        debited: coinsToAdjust > 0 ? coinsToAdjust : 0,
+        refunded: coinsToAdjust < 0 ? Math.abs(coinsToAdjust) : 0,
         previousBalance: originalCoins,
         newBalance: user.coins,
       },

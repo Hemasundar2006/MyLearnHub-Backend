@@ -33,9 +33,70 @@ const startBillingService = (io) => {
             continue;
           }
 
+          const now = new Date();
+          const startTime = session.startTime;
+
+          // Check if requested duration has been reached (auto-end)
+          if (session.requestedDuration && startTime) {
+            const elapsedMinutes = Math.floor((now - startTime) / (1000 * 60));
+            
+            if (elapsedMinutes >= session.requestedDuration) {
+              // Requested duration completed - auto-end the chat
+              console.log(`⏰ Requested duration (${session.requestedDuration} minutes) completed for session ${session._id}. Auto-ending...`);
+              
+              // Calculate final time and coins
+              const endTime = new Date(startTime.getTime() + (session.requestedDuration * 60 * 1000));
+              const totalCoinsSpent = session.requestedDuration * COINS_PER_MINUTE;
+
+              // Update session
+              session.status = 'closed';
+              session.endTime = endTime;
+              session.totalTimeInMinutes = session.requestedDuration;
+              session.totalCoinsSpent = totalCoinsSpent;
+              await session.save();
+
+              // Emit auto-end event to user and admin
+              const userSocketId = activeConnections.users.get(user._id.toString());
+              if (userSocketId && io) {
+                io.to(userSocketId).emit('chatAutoEnded', {
+                  sessionId: session._id.toString(),
+                  message: `Chat session completed. Requested duration (${session.requestedDuration} minutes) reached.`,
+                  totalTimeInMinutes: session.requestedDuration,
+                  totalCoinsSpent: totalCoinsSpent,
+                  reason: 'duration_completed',
+                });
+
+                io.to(userSocketId).emit('chatEnded', {
+                  sessionId: session._id.toString(),
+                  status: 'closed',
+                  totalTimeInMinutes: session.requestedDuration,
+                  totalCoinsSpent: totalCoinsSpent,
+                  endTime: endTime,
+                  reason: 'duration_completed',
+                });
+              }
+
+              // Notify admin
+              if (session.adminId) {
+                const adminSocketId = activeConnections.admins.get(session.adminId.toString());
+                if (adminSocketId && io) {
+                  io.to(adminSocketId).emit('chatEnded', {
+                    sessionId: session._id.toString(),
+                    status: 'closed',
+                    message: `Chat session auto-ended. Requested duration (${session.requestedDuration} minutes) completed.`,
+                    totalTimeInMinutes: session.requestedDuration,
+                    totalCoinsSpent: totalCoinsSpent,
+                    reason: 'duration_completed',
+                  });
+                }
+              }
+
+              continue; // Skip billing for this session
+            }
+          }
+
           // Calculate time since last billing (or start time)
           const lastBillingTime = session.lastBillingTime || session.startTime;
-          const now = new Date();
           const timeSinceLastBilling = now - lastBillingTime;
 
           // Only bill if at least 60 seconds have passed
@@ -43,6 +104,19 @@ const startBillingService = (io) => {
             continue;
           }
 
+          // Check if coins were already deducted on acceptance
+          // If requestedCoins exists, coins were deducted upfront - only track time for auto-end
+          const coinsAlreadyDeducted = session.requestedCoins && session.requestedCoins > 0;
+          
+          if (coinsAlreadyDeducted) {
+            // Coins already deducted on acceptance - just track time for auto-end
+            // Update last billing time to track progress
+            session.lastBillingTime = now;
+            await session.save();
+            continue; // Skip billing, coins already paid
+          }
+
+          // Coins not deducted upfront - use per-minute billing
           // Calculate minutes to bill (round up)
           const minutesToBill = Math.ceil(timeSinceLastBilling / (1000 * 60));
           const coinsToDebit = minutesToBill * COINS_PER_MINUTE;
