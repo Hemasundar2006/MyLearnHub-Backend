@@ -563,9 +563,6 @@ exports.endChat = async (req, res) => {
     // Get user ID (handle both populated and non-populated)
     const userIdToDebit = chatSession.userId._id || chatSession.userId;
 
-    // Get user ID (handle both populated and non-populated)
-    const userIdToDebit = chatSession.userId._id || chatSession.userId;
-
     // Debit coins from user
     const user = await User.findById(userIdToDebit);
     if (!user) {
